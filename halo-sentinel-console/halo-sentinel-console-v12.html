@@ -1,0 +1,1286 @@
+<title>H.A.L.O. Sentinel Console v12</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<style>
+/* Layout: framed SOC console. Icon rail, then three columns: health + AI, topology + tiles + table, timeline + trend. Single dark teal look. All figures are sample data. */
+:root {
+  --bg: #040b0b;
+  --frame: #081413;
+  --panel: #0a1918;
+  --panel2: #0d1f1e;
+  --line: #153431;
+  --fg: #e3f1ee;
+  --dim: #86a39e;
+  --teal: #2fd8c0;
+  --teal-d: rgba(47,216,192,.14);
+  --red: #ff5a5f;
+  --amber: #f4b43c;
+  --blue: #5aa9ff;
+  --font: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: radial-gradient(1200px 600px at 50% -10%, #0c2a28 0%, var(--bg) 60%); color: var(--fg); font-family: var(--font); font-size: 13px; line-height: 1.45; }
+.outer { padding-block: 20px; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+.app { max-width: 1320px; margin: 0 auto; background: var(--frame); border: 1px solid var(--line); border-radius: 18px; display: grid; grid-template-columns: 56px 1fr; overflow: hidden; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+button, select, input { font-family: inherit; color: inherit; }
+
+.rail { border-right: 1px solid var(--line); padding: 16px 8px; display: flex; flex-direction: column; gap: 8px; align-items: center; background: rgba(0,0,0,.18); }
+.logo { width: 34px; height: 34px; border-radius: 9px; background: var(--teal-d); border: 1px solid rgba(47,216,192,.4); display: grid; place-items: center; margin-bottom: 10px; font-family: var(--mono); color: var(--teal); font-weight: 500; }
+.ri { width: 38px; height: 38px; border-radius: 10px; border: 1px solid transparent; background: none; display: grid; place-items: center; color: var(--dim); cursor: pointer; }
+.ri:hover { color: var(--fg); background: var(--panel); }
+.ri.on { color: var(--teal); background: var(--teal-d); border-color: rgba(47,216,192,.35); }
+.ri svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.sp { flex: 1; }
+
+.main { min-width: 0; padding: 14px 18px 18px; }
+.bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+.sel { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 12px; }
+.sel option { background: #0a1918; }
+.search { flex: 0 1 220px; min-width: 140px; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-size: 12px; }
+.search::placeholder { color: var(--dim); }
+.avatar { width: 34px; height: 34px; border-radius: 50%; background: linear-gradient(135deg, #1b6b62, #0d3a36); border: 1px solid rgba(47,216,192,.4); display: grid; place-items: center; font-weight: 600; font-size: 12px; }
+
+.head { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; margin: 14px 0 14px; }
+h1 { font-size: 26px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+.head p { margin: 4px 0 0; color: var(--dim); font-size: 13px; }
+.hbtn { display: flex; gap: 8px; }
+.btn { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 9px 14px; font-size: 12px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; }
+.btn:hover { border-color: var(--teal); }
+.btn.teal { border-color: rgba(47,216,192,.5); background: var(--teal-d); color: var(--teal); }
+
+.cols { display: grid; grid-template-columns: 250px minmax(0, 1fr) 280px; gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; min-width: 0; }
+.ct { font-size: 12px; font-weight: 600; margin: 0 0 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.chip { font-family: var(--mono); font-size: 10px; color: var(--dim); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-weight: 400; }
+
+.gauge { position: relative; width: 100%; max-width: 210px; margin: 0 auto; }
+.gauge svg { width: 100%; display: block; }
+.gv { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; padding-top: 14px; }
+.gv b { font-size: 34px; font-weight: 600; line-height: 1; }
+.gv b small { font-size: 12px; color: var(--dim); font-weight: 400; }
+.gv span { color: var(--teal); font-size: 12px; margin-top: 4px; }
+.kv { display: grid; gap: 7px; margin-top: 10px; }
+.kv div { display: flex; justify-content: space-between; color: var(--dim); }
+.kv b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ok { color: var(--teal); }
+.ai { font-size: 12px; color: var(--dim); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 12px; }
+.ai b { color: var(--teal); font-weight: 600; }
+.attr { display: flex; justify-content: space-between; align-items: flex-end; }
+.attr .n { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.attr .up { color: var(--teal); font-size: 12px; }
+.bars { display: flex; gap: 6px; align-items: flex-end; height: 54px; margin-top: 8px; }
+.bars i { flex: 1; border-radius: 3px 3px 0 0; background: var(--teal-d); border: 1px solid rgba(47,216,192,.45); display: block; }
+.bl { display: flex; gap: 6px; font-size: 10px; color: var(--dim); margin-top: 4px; }
+.bl span { flex: 1; text-align: center; }
+
+.topo svg { width: 100%; height: auto; display: block; }
+.legend { display: flex; gap: 12px; font-size: 11px; color: var(--dim); }
+.legend i { display: inline-block; width: 7px; height: 7px; border-radius: 2px; margin-right: 5px; }
+@media (prefers-reduced-motion: no-preference) { .atk { animation: dash 1.4s linear infinite; } }
+@keyframes dash { to { stroke-dashoffset: -16; } }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tile { padding: 12px 14px; }
+.tile .l { font-size: 11px; color: var(--dim); display: flex; gap: 6px; align-items: center; }
+.tile .l i { width: 7px; height: 7px; border-radius: 2px; display: block; }
+.tile .v { font-size: 28px; font-weight: 600; margin: 6px 0 2px; font-variant-numeric: tabular-nums; }
+.tile .s { font-size: 11px; color: var(--dim); }
+
+.tw { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; min-width: 480px; }
+th { text-align: left; font-size: 11px; color: var(--dim); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 9px 8px; border-bottom: 1px solid rgba(21,52,49,.6); font-size: 12px; }
+tbody tr { cursor: pointer; }
+tbody tr:hover, tbody tr.sel { background: var(--teal-d); }
+tr:last-child td { border-bottom: 0; }
+.who { display: flex; gap: 8px; align-items: center; }
+.who i { width: 22px; height: 22px; border-radius: 50%; background: #123f3a; display: grid; place-items: center; font-style: normal; font-size: 9px; font-weight: 600; }
+.mono { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+.sev { font-size: 11px; padding: 2px 8px; border-radius: 5px; border: 1px solid; }
+.sev.Critical { color: var(--red); border-color: rgba(255,90,95,.5); background: rgba(255,90,95,.1); }
+.sev.High { color: var(--amber); border-color: rgba(244,180,60,.5); background: rgba(244,180,60,.1); }
+.sev.Medium { color: var(--blue); border-color: rgba(90,169,255,.5); background: rgba(90,169,255,.1); }
+.sev.Low { color: var(--dim); border-color: var(--line); }
+
+.tl { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.tl li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; position: relative; }
+.tl li:not(:last-child)::after { content: ""; position: absolute; left: 10px; top: 28px; bottom: -8px; width: 1px; background: var(--line); }
+.dot { width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; background: var(--panel2); }
+.dot i { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); display: block; }
+.tl .done .dot { border-color: rgba(47,216,192,.5); } .tl .done .dot i { background: var(--teal); }
+.tl .cur .dot { border-color: rgba(244,180,60,.6); } .tl .cur .dot i { background: var(--amber); }
+.tl .nm { font-size: 12px; } .tl .tm { font-family: var(--mono); font-size: 10px; color: var(--dim); display: block; }
+.st { font-size: 10px; padding: 2px 8px; border-radius: 5px; border: 1px solid var(--line); color: var(--dim); }
+.done .st { color: var(--teal); border-color: rgba(47,216,192,.45); background: var(--teal-d); }
+.cur .st { color: var(--amber); border-color: rgba(244,180,60,.45); background: rgba(244,180,60,.1); }
+.sub { color: var(--dim); font-size: 11px; margin: -6px 0 6px; font-family: var(--mono); }
+.trend svg { width: 100%; max-width: 380px; margin-inline: auto; height: auto; display: block; }
+.trend .sel { padding: 4px 6px; font-size: 11px; }
+.foot { margin-top: 12px; font-family: var(--mono); font-size: 11px; color: var(--dim); display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+
+.app { box-shadow: 0 0 0 1px rgba(47,216,192,.06), 0 30px 80px rgba(0,0,0,.6), 0 0 120px rgba(47,216,192,.07); background: linear-gradient(180deg, #0a1817, #071211); }
+.card { background: linear-gradient(180deg, rgba(17,42,40,.82), rgba(9,22,21,.96)); box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 8px 24px rgba(0,0,0,.25); transition: border-color .2s; }
+.card:hover { border-color: rgba(47,216,192,.3); }
+.topo { background-image: radial-gradient(circle at 50% 45%, rgba(47,216,192,.13), transparent 62%), linear-gradient(rgba(47,216,192,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(47,216,192,.055) 1px, transparent 1px), linear-gradient(180deg, rgba(17,42,40,.82), rgba(9,22,21,.96)); background-size: auto, 28px 28px, 28px 28px, auto; }
+.topo circle[stroke="#2fd8c0"] { filter: drop-shadow(0 0 4px rgba(47,216,192,.7)); }
+.topo circle[stroke="#ff5a5f"] { filter: drop-shadow(0 0 6px rgba(255,90,95,.8)); }
+.topo path[stroke="#2fd8c0"] { filter: drop-shadow(0 0 3px rgba(47,216,192,.5)); }
+.pulse { transform-box: fill-box; transform-origin: center; }
+@media (prefers-reduced-motion: no-preference) {
+  .pulse { animation: ring 2s ease-out infinite; }
+  .cur .dot i { animation: blip 1.6s ease-in-out infinite; }
+}
+@keyframes ring { 0% { transform: scale(1); opacity: .9; } 100% { transform: scale(3.2); opacity: 0; } }
+@keyframes blip { 50% { box-shadow: 0 0 0 5px rgba(244,180,60,0); transform: scale(1.5); } }
+.cur .dot i { box-shadow: 0 0 8px rgba(244,180,60,.9); }
+.done .dot i { box-shadow: 0 0 6px rgba(47,216,192,.8); }
+.gauge svg { filter: drop-shadow(0 0 10px rgba(47,216,192,.35)); }
+.gv b { text-shadow: 0 0 18px rgba(47,216,192,.45); }
+.ri.on { box-shadow: 0 0 16px rgba(47,216,192,.28); }
+.logo { box-shadow: 0 0 18px rgba(47,216,192,.3); }
+.btn.teal { box-shadow: 0 0 16px rgba(47,216,192,.18); }
+.btn.teal:hover { background: rgba(47,216,192,.22); }
+.bars i { background: linear-gradient(180deg, rgba(47,216,192,.55), rgba(47,216,192,.05)); }
+.bars i:nth-child(2) { background: linear-gradient(180deg, rgba(47,216,192,.9), rgba(47,216,192,.12)); box-shadow: 0 0 12px rgba(47,216,192,.35); }
+.tile { position: relative; }
+.tile .v { text-shadow: 0 0 16px rgba(47,216,192,.18); }
+.spark { position: absolute; right: 12px; bottom: 12px; width: 64px; height: 24px; }
+tr.sel td:first-child { box-shadow: inset 2px 0 var(--teal); }
+.sev.Critical { box-shadow: 0 0 12px rgba(255,90,95,.28); }
+#chart path[fill="none"] { filter: drop-shadow(0 0 4px rgba(47,216,192,.45)); }
+.chip { background: rgba(47,216,192,.06); }
+h1 { text-shadow: 0 0 30px rgba(47,216,192,.2); }
+.topo g.node { cursor: pointer; }
+.topo g.node:hover circle:not(.pulse) { stroke-width: 2.5; }
+.topo g.node.sel circle:not(.pulse) { stroke-width: 3.2; }
+.topo g.node:focus-visible circle:not(.pulse) { stroke: #fff; }
+.inv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.inv h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+.inv ul { margin: 0; padding-left: 16px; color: var(--fg); font-size: 12px; }
+.inv li { margin-bottom: 4px; }
+.ev { font-family: var(--mono); font-size: 11px; color: var(--dim); display: grid; gap: 5px; }
+.ev span { display: block; padding: 5px 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; overflow-wrap: anywhere; }
+.cn { background: var(--teal-d); border: 1px solid rgba(47,216,192,.4); color: var(--teal); border-radius: 6px; padding: 3px 9px; font-size: 11px; cursor: pointer; margin: 0 6px 6px 0; }
+.cn:hover { background: rgba(47,216,192,.24); }
+.pth { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11px; color: var(--dim); }
+.pth b { font-weight: 500; color: var(--fg); border: 1px dashed rgba(244,180,60,.55); border-radius: 6px; padding: 2px 8px; background: rgba(244,180,60,.07); }
+.pth b.real { border-style: solid; border-color: rgba(255,90,95,.6); background: rgba(255,90,95,.08); }
+.invact { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+@media (max-width: 760px) { .inv-grid { grid-template-columns: 1fr; } }
+.askl { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; padding-right: 2px; }
+.msg { font-size: 12px; padding: 8px 10px; border-radius: 8px; min-width: 0; overflow-wrap: anywhere; }
+.msg.q { background: var(--panel2); border: 1px solid var(--line); align-self: flex-end; max-width: 92%; }
+.msg.a { border: 1px solid rgba(47,216,192,.3); background: var(--teal-d); }
+.cites { margin-top: 8px; display: flex; flex-direction: column; align-items: flex-start; }
+.cites .cn { text-align: left; font-family: var(--mono); font-size: 10.5px; max-width: 100%; overflow-wrap: anywhere; }
+.sugg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.sugg button { background: none; border: 1px solid var(--line); color: var(--dim); border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+.sugg button:hover { color: var(--fg); border-color: var(--teal); }
+.askf { display: flex; gap: 8px; }
+.askf .search { flex: 1; min-width: 0; }
+.aerr { color: var(--red); min-height: 16px; margin-top: 6px; font-size: 11px; }
+.ba { margin-top: 18px; }
+.ba-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.ba h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.ba-grid { display: grid; grid-template-columns: 230px minmax(0, 1fr) 230px; gap: 12px; margin-bottom: 12px; }
+#baTable { min-width: 0; }
+#baTable th, #baTable td { padding: 8px 4px; }
+.ba-det { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.ba-bot { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 12px; }
+.rs { font-size: 46px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; margin: 4px 0 8px; }
+.rs.High { color: var(--red); text-shadow: 0 0 22px rgba(255,90,95,.45); } .rs.Medium { color: var(--amber); } .rs.Low { color: var(--teal); }
+.kvl { margin: 12px 0; display: grid; gap: 5px; font-size: 12px; }
+.kvl div { display: flex; justify-content: space-between; gap: 8px; color: var(--dim); }
+.kvl b { color: var(--fg); font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.why { list-style: none; margin: 8px 0 12px; padding: 0; font-size: 12px; display: grid; gap: 4px; }
+.why li { display: flex; justify-content: space-between; color: var(--dim); }
+.why b { color: var(--amber); font-weight: 500; font-family: var(--mono); }
+#baRows tr.sel td:first-child { box-shadow: inset 2px 0 var(--teal); }
+.fg { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 10px; font-family: var(--mono); border: 1px solid var(--line); color: var(--dim); }
+.fg.on { color: #fff; background: rgba(255,90,95,.75); border-color: var(--red); box-shadow: 0 0 8px rgba(255,90,95,.45); }
+.sc { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 5px; border: 1px solid var(--line); }
+.sc.High { color: var(--red); border-color: rgba(255,90,95,.5); background: rgba(255,90,95,.1); }
+.sc.Medium { color: var(--amber); border-color: rgba(244,180,60,.5); background: rgba(244,180,60,.1); }
+.sc.Low { color: var(--dim); }
+.top { display: grid; gap: 8px; }
+.tr { display: grid; grid-template-columns: 38px 1fr; gap: 10px; align-items: center; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: left; cursor: pointer; width: 100%; }
+.tr:hover { border-color: var(--teal); }
+.tr .u { font-size: 12px; overflow-wrap: anywhere; } .tr .r { font-size: 11px; color: var(--dim); }
+.jx { margin: 0; font-family: var(--mono); font-size: 11px; line-height: 1.6; color: var(--dim); overflow-x: auto; white-space: pre; }
+.ab { display: grid; gap: 9px; }
+.ab .l { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+.ab .t { height: 6px; border-radius: 3px; background: #12302d; overflow: hidden; }
+.ab .t i { display: block; height: 100%; background: linear-gradient(90deg, rgba(47,216,192,.35), var(--teal)); }
+.ab .t i.hot { background: linear-gradient(90deg, rgba(255,90,95,.35), var(--red)); }
+#baChart { width: 100%; height: auto; display: block; }
+@media (max-width: 1100px) { .ba-grid { grid-template-columns: 1fr; } .ba-det { grid-template-columns: 1fr; } .ba-bot { grid-template-columns: 1fr; } }
+.gl { margin-top: 18px; }
+.gl h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.gl-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; }
+.gl-c { background-image: radial-gradient(circle at 50% 45%, rgba(47,216,192,.10), transparent 65%), linear-gradient(180deg, rgba(17,42,40,.82), rgba(9,22,21,.96)); }
+#globe { width: 100%; height: 420px; display: block; touch-action: pan-y; cursor: grab; border-radius: 8px; }
+#globe:active { cursor: grabbing; }
+#glAuto { padding: 4px 10px; font-size: 11px; }
+.glr { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; width: 100%; text-align: left; background: none; border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; cursor: pointer; margin-bottom: 8px; font-size: 12px; }
+.glr:hover { border-color: var(--teal); }
+.glr.on { border-color: rgba(47,216,192,.6); background: var(--teal-d); }
+.glr .bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: #12302d; overflow: hidden; }
+.glr .bar i { display: block; height: 100%; background: linear-gradient(90deg, rgba(47,216,192,.35), var(--teal)); }
+@media (max-width: 1100px) { .gl-grid { grid-template-columns: 1fr; } #globe { height: 340px; } }
+
+.rf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: -2px 0 10px; font-size: 11px; }
+.demo { border: 1px solid rgba(244,180,60,.5); background: rgba(244,180,60,.08); color: var(--amber); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin-bottom: 12px; }
+.fev h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+.fchips { margin: 10px 0 8px; }
+.cn.on { background: rgba(47,216,192,.3); color: #fff; }
+.evt { border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; margin-bottom: 8px; background: var(--panel2); }
+.evh { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 4px; font-size: 11px; color: var(--dim); }
+.eid { color: var(--teal); }
+.evd { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+.evm { font-size: 11px; color: var(--dim); margin-top: 4px; overflow-wrap: anywhere; }
+.tb { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; border: 1px solid; border-radius: 4px; padding: 1px 6px; }
+.tb.authentication { color: var(--blue); border-color: rgba(90,169,255,.5); }
+.tb.endpoint { color: var(--amber); border-color: rgba(244,180,60,.5); }
+.tb.network { color: var(--teal); border-color: rgba(47,216,192,.5); }
+.gb { font-size: 10px; border: 1px solid; border-radius: 4px; padding: 1px 6px; margin-right: 6px; }
+.gb.approximate { color: var(--amber); border-style: dashed; border-color: rgba(244,180,60,.6); }
+.gb.verified { color: var(--teal); border-color: rgba(47,216,192,.6); background: var(--teal-d); }
+.hyp { border: 1px dashed rgba(244,180,60,.55); border-radius: 8px; padding: 8px 10px; font-size: 12px; margin: 10px 0; background: rgba(244,180,60,.06); }
+.obs { margin: 0 0 6px; padding-left: 16px; font-size: 12px; }
+.geo { margin: 0 0 8px; padding-left: 16px; font-size: 12px; display: grid; gap: 5px; }
+.leg { font-size: 11px; color: var(--dim); border-left: 2px solid var(--line); padding-left: 8px; margin: 6px 0; }
+.leg.warn { border-color: var(--red); color: var(--fg); }
+.fnote { font-size: 10.5px; color: var(--dim); margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+@media (max-width: 1100px) { .cols { grid-template-columns: 1fr 1fr; } .col.c3 { grid-column: 1 / -1; } }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; }
+  .rail { flex-direction: row; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; justify-content: flex-start; }
+  .logo { margin: 0 6px 0 0; } .sp { display: none; }
+  .cols { grid-template-columns: 1fr; }
+  .tiles { grid-template-columns: 1fr 1fr; }
+  .bar { justify-content: flex-start; }
+}
+
+/* ===== v12: view shell, AI accent, responsive ===== */
+:root { --ai: #a78bfa; --ai-d: rgba(167,139,250,.12); --cyan: #5ce1f2; }
+.app.v12 { grid-template-columns: 208px minmax(0, 1fr); }
+.side { border-right: 1px solid var(--line); padding: 14px 10px; display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,.18); min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 6px 12px; }
+.brand .logo { margin: 0; flex: none; }
+.brand b { display: block; font-size: 13px; letter-spacing: .08em; } .brand small { color: var(--dim); font-size: 11px; }
+.nl { display: flex; flex-direction: column; gap: 2px; }
+.ng { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); padding: 12px 8px 4px; }
+.ni { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; color: var(--dim); text-decoration: none; border: 1px solid transparent; font-size: 12.5px; }
+.ni svg { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ni:hover { color: var(--fg); background: var(--panel); }
+.ni[aria-current="page"] { color: var(--teal); background: var(--teal-d); border-color: rgba(47,216,192,.35); }
+.ni.ai[aria-current="page"] { color: var(--ai); background: var(--ai-d); border-color: rgba(167,139,250,.4); }
+.sf { margin-top: auto; padding: 12px 6px 2px; display: flex; flex-direction: column; gap: 8px; }
+.demo-pill { font-family: var(--mono); font-size: 10px; color: var(--amber); border: 1px solid rgba(244,180,60,.5); background: rgba(244,180,60,.08); border-radius: 999px; padding: 2px 10px; align-self: flex-start; }
+.jump { color: var(--cyan); text-decoration: none; font-size: 12px; } .jump:hover { text-decoration: underline; }
+#viewTitle:focus { outline: none; } #viewTitle:focus-visible { outline: 2px solid var(--teal); outline-offset: 4px; border-radius: 4px; }
+.banner { margin: 0 0 12px; }
+.view[hidden] { display: none !important; }
+.view { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.hint { color: var(--dim); font-size: 12px; margin: 4px 0 0; } .hint.mono { font-size: 11px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cc { display: grid; grid-template-columns: 250px minmax(0, 1fr) 290px; gap: 12px; }
+.jumps { display: flex; flex-direction: column; gap: 8px; }
+.pl { display: flex; flex-direction: column; gap: 8px; }
+.pc { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: center; text-align: left; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 9px 10px; cursor: pointer; }
+.pc:hover { border-color: var(--teal); } .pc .pt { font-size: 12.5px; } .pc .pm { grid-column: 1 / -1; font-size: 10.5px; color: var(--dim); }
+.pri .jump { display: inline-block; margin-top: 10px; }
+.ql { display: flex; flex-direction: column; gap: 10px; }
+.qr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; background: var(--panel2); border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; }
+.qr .qa { grid-column: 1; font-size: 12px; } .qr .qs { grid-column: 1; font-size: 11px; color: var(--dim); overflow-wrap: anywhere; } .qr .btn { grid-column: 2; grid-row: 1 / span 3; }
+.trust { min-width: 560px; } .trust th, .trust td { vertical-align: top; } .trust th[scope="row"] { font-weight: 500; text-align: left; }
+.st { font-family: var(--mono); font-size: 10.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.st.working { color: #3ddc97; border-color: rgba(61,220,151,.5); background: rgba(61,220,151,.08); }
+.st.simulated { color: var(--amber); border-color: rgba(244,180,60,.5); background: rgba(244,180,60,.08); }
+.st.planned { color: var(--dim); border-color: var(--line); }
+/* AI surfaces get the subtle purple */
+.ai b { color: var(--ai); }
+#ai { border-left: 2px solid var(--ai); }
+.card.ask { border-color: rgba(167,139,250,.35); box-shadow: 0 0 0 1px rgba(167,139,250,.06), 0 0 22px rgba(167,139,250,.07); }
+.card.ask .chip { color: var(--ai); border-color: rgba(167,139,250,.4); }
+.ask-v .askl { max-height: 55vh; }
+/* glowing topology */
+.topo svg path { filter: drop-shadow(0 0 3px rgba(47,216,192,.55)); }
+.topo svg path.atk { filter: drop-shadow(0 0 4px rgba(255,90,95,.7)); }
+.topo-mini svg { max-height: 190px; } .topo-big svg { max-height: 62vh; width: 100%; }
+.topo-big svg text { font-size: 11px; }
+@media (max-width: 1180px) { .cc { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .cc > .col:nth-child(2) { grid-column: 1 / -1; order: -1; } }
+@media (max-width: 900px) {
+  .app.v12 { grid-template-columns: 1fr; }
+  .side { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--line); padding: 8px; position: sticky; top: 0; z-index: 5; background: rgba(8,20,19,.96); overflow-x: auto; }
+  .brand { padding: 0 8px 0 2px; } .brand small, .ng, .sf { display: none; } .nl { flex-direction: row; gap: 4px; } .ni { white-space: nowrap; }
+  .two { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) { .trust { min-width: 0; } .trust thead { display: none; } .trust tr { display: block; padding: 10px 0; border-bottom: 1px solid var(--line); } .trust th, .trust td { display: block; padding: 2px 0; border: 0; } .bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .bar .search { grid-column: 1 / -1; flex: none; } .bar .avatar { display: none; } .bar .sel { min-width: 0; width: 100%; } .cc { grid-template-columns: 1fr; } .main { padding: 12px; } h1 { font-size: 22px; } .qr { grid-template-columns: 1fr; } .qr .btn { grid-column: 1; grid-row: auto; justify-self: start; } .bar { justify-content: flex-start; } }
+</style>
+
+<div class="outer">
+<div class="app v12">
+  <nav class="side" aria-label="Sentinel views">
+    <div class="brand"><div class="logo" aria-hidden="true">H</div><div><b>H.A.L.O.</b><small>Sentinel</small></div></div>
+    <div class="nl">
+      <div class="ng">Overview</div>
+      <a class="ni" href="#/command-center" data-view="command-center"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg><span>Command Center</span></a>
+      <div class="ng">Respond</div>
+      <a class="ni" href="#/incidents" data-view="incidents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/></svg><span>Incidents</span></a>
+      <a class="ni" href="#/investigation" data-view="investigation"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.2-4.2"/></svg><span>Investigation</span></a>
+      <a class="ni" href="#/evidence" data-view="evidence"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M9 9h6M9 13h6M9 17h3"/></svg><span>Evidence</span></a>
+      <a class="ni" href="#/timeline" data-view="timeline"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5v14"/><circle cx="5" cy="7" r="1.6"/><circle cx="5" cy="13" r="1.6"/><path d="M10 7h9M10 13h6M10 18h8"/></svg><span>Timeline</span></a>
+      <a class="ni" href="#/queue" data-view="queue"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9"/><path d="M17 16l2 2 3-4"/></svg><span>Response queue</span></a>
+      <div class="ng">Visualize</div>
+      <a class="ni" href="#/topology" data-view="topology"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="12" cy="18" r="2"/><path d="M7 11l3.5-3.5M14 7.5L17.5 11M17 13l-3.5 3.5M10.5 16.5L7 13"/></svg><span>Network topology</span></a>
+      <a class="ni" href="#/global" data-view="global"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M4 12h16M12 4c3 3 3 13 0 16M12 4c-3 3-3 13 0 16"/></svg><span>Global activity</span></a>
+      <a class="ni" href="#/behavior" data-view="behavior"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l4-6 4 3 5-8 3 4"/><path d="M4 20h16"/></svg><span>Behavioral analytics</span></a>
+      <div class="ng">AI and trust</div>
+      <a class="ni ai" href="#/ask" data-view="ask"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14v9H10l-4 3v-3H5z"/></svg><span>Ask H.A.L.O.</span></a>
+      <a class="ni" href="#/trust" data-view="trust"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.2 7.5-8 9-4.8-1.5-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg><span>Trust and status</span></a>
+      <a class="ni" href="#/about" data-view="about"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg><span>About and demo</span></a>
+    </div>
+    <div class="sf"><span class="demo-pill">Demo mode</span><a class="jump" href="index.html">Overview page</a></div>
+  </nav>
+
+  <div class="main">
+    <div class="bar">
+      <select class="sel" id="team" aria-label="Team"><option>Team: Global SOC</option><option>Team: Night shift</option></select>
+      <select class="sel" id="region" aria-label="Region"><option>Region: Asia Pacific</option><option>Region: EMEA</option><option>Region: Americas</option></select>
+      <select class="sel" id="range" aria-label="Time range"><option value="24">Time Range: Last 24 Hours</option><option value="7">Time Range: Last 7 Days</option></select>
+      <select class="sel" id="threat" aria-label="Threat framework"><option>Threat: MITRE ATT&amp;CK</option><option>Threat: Kill chain</option></select>
+      <input class="search" id="q" type="search" placeholder="Search by name, etc..." aria-label="Search incidents">
+      <div class="avatar" aria-label="Analyst">HS</div>
+    </div>
+    <div class="head">
+      <div>
+        <h1 id="viewTitle" tabindex="-1">Command Center</h1>
+        <p id="viewDesc">The overview.</p>
+      </div>
+      <div class="hbtn">
+        <button class="btn teal" type="button" title="Generates new random sample numbers. It does not fetch any data." id="refresh">Randomize Sample Data</button>
+      </div>
+    </div>
+    <div class="demo banner" role="note">Demo mode. All data is synthetic and nothing is connected to a live system. Recommendations only. Analysts approve every action.</div>
+
+    <main id="views">
+    <section class="view cc-v" id="v-command-center" data-view="command-center" aria-labelledby="viewTitle" hidden>
+      <div class="cc">
+        <div class="col"><div class="card">
+          <div class="ct">Incident Health Score <span class="chip">sample</span></div>
+          <div class="gauge">
+            <svg viewBox="0 0 200 150" role="img" aria-label="Health score 90 out of 100"><g id="g"></g></svg>
+            <div class="gv"><b><span id="score">90</span><small>/100</small></b><span>Excellent</span></div>
+          </div>
+          <div class="kv">
+            <div>Active cases <b id="kActive">38</b></div>
+            <div>Critical cases <b id="kCrit">5</b></div>
+            <div>Avg resolution time <b>18m</b></div>
+            <div>SLA compliance <b>97%</b></div>
+            <div>Status <b class="ok">Demo mode</b></div>
+          </div>
+        </div>
+<div class="card">
+          <div class="ct">AI Investigation <span class="chip">sample</span></div>
+          <div class="ai" id="ai"><b>Sample summary (fixed text, no model):</b> Unusual outbound traffic from FIN-SRV-01 detected after multiple failed RDP attempts from an external IP. Confidence 91% (hardcoded sample value, not calculated). Recommended: isolate host, pending analyst approval.</div>
+          <div class="ct">Threat Attribution</div>
+          <div class="attr"><span class="n" id="attrN">204</span><span class="up">+18% &uarr;</span></div>
+          <div class="bars"><i style="height:62%"></i><i style="height:100%"></i><i style="height:38%"></i></div>
+          <div class="bl"><span>Financial</span><span>Ransomware</span><span>Espionage</span></div>
+        </div>
+</div>
+        <div class="col"><div class="card topo topo-mini">
+          <div class="ct">Network Topology <span class="legend"><span><i style="background:var(--red)"></i>Attack path</span><span><i style="background:var(--teal)"></i>Normal</span></span></div>
+          <svg viewBox="0 0 560 250" role="img" aria-label="Network topology with an attack path through the switch to the finance server and production database">
+            <g fill="none" stroke-width="1.5">
+              <path d="M40 130 C 70 130, 85 112, 120 112" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M120 112 C 150 112, 160 132, 195 132" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M195 132 C 225 132, 235 70, 270 70" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M270 70 C 320 70, 330 40, 380 40" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M380 40 C 430 40, 440 80, 485 80" stroke="#2fd8c0" opacity=".7"/>
+              <path class="atk" d="M195 132 C 235 132, 245 185, 290 185" stroke="#ff5a5f" stroke-width="2" stroke-dasharray="6 5"/>
+              <path class="atk" d="M290 185 C 335 185, 345 140, 395 140" stroke="#ff5a5f" stroke-width="2" stroke-dasharray="6 5"/>
+              <path d="M395 140 C 425 140, 435 210, 470 210" stroke="#2fd8c0" opacity=".7"/>
+            </g>
+            <g font-size="10" fill="#e3f1ee" text-anchor="middle" font-family="Manrope, ui-sans-serif, system-ui, 'Segoe UI', Arial, sans-serif">
+              <g><circle cx="40" cy="130" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="40" y="154">Internet</text></g>
+              <g><circle cx="120" cy="112" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="120" y="136">Firewall</text></g>
+              <g><circle cx="195" cy="132" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="195" y="156">Switch</text></g>
+              <g><circle cx="270" cy="70" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="270" y="94">WS-002</text></g>
+              <g><circle cx="380" cy="40" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="380" y="64">WS-001</text></g>
+              <g><circle cx="485" cy="80" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="485" y="104">Cloud</text></g>
+              <g><circle class="pulse" cx="290" cy="185" r="10" fill="none" stroke="#ff5a5f" stroke-width="1.5"/><circle cx="290" cy="185" r="10" fill="#2a1013" stroke="#ff5a5f"/><text x="290" y="211">FIN-SRV</text></g>
+              <g><circle cx="395" cy="140" r="10" fill="#2a1d0e" stroke="#f4b43c"/><text x="395" y="164">DB-Prod</text></g>
+              <g><circle cx="470" cy="210" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="470" y="234">WS-003</text></g>
+            </g>
+          </svg>
+        </div>
+
+
+          <div class="card pri"><div class="ct">Priority incidents <span class="chip">sample</span></div><div id="priList" class="pl"></div><a class="jump" href="#/incidents">All incidents &rarr;</a></div>
+          <div class="tiles">
+          <div class="card tile"><div class="l"><i style="background:var(--blue)"></i>Open Incidents</div><div class="v" id="t1">38</div><div class="s">Currently Active Cases</div></div>
+          <div class="card tile"><div class="l"><i style="background:var(--red)"></i>Critical Incidents</div><div class="v" id="t2">5</div><div class="s">Immediate Action Required</div></div>
+          <div class="card tile"><div class="l"><i style="background:var(--teal)"></i>Resolved Today</div><div class="v" id="t3">127</div><div class="s">Successfully Closed</div></div>
+          <div class="card tile"><div class="l"><i style="background:var(--amber)"></i>Avg Time</div><div class="v">12m</div><div class="s">Mean Time To Respond</div></div>
+        </div>
+
+
+        </div>
+        <div class="col"><div class="card trend">
+          <div class="ct">Incident Volume Trend <span class="chip" id="rng">24 Hours</span></div>
+          <svg viewBox="0 0 260 150" id="chart" role="img" aria-label="Incident volume trend"></svg>
+          <div class="legend" style="margin-top:6px"><span><i style="background:var(--teal)"></i>Received</span><span><i style="background:var(--amber)"></i>Resolved</span></div></div>
+          <div class="card"><div class="ct">Explore</div><div class="jumps"><a class="jump" href="#/investigation">Investigation</a><a class="jump" href="#/evidence">Evidence</a><a class="jump" href="#/global">Global activity</a><a class="jump" href="#/behavior">Behavioral analytics</a><a class="jump" href="#/ask">Ask H.A.L.O.</a></div></div>
+        </div>
+      </div>
+    </section>
+    <section class="view " id="v-incidents" data-view="incidents" aria-labelledby="viewTitle" hidden>
+      <div class="card">
+          <div class="ct">Global Threat Radar <span class="chip" id="count">6 incidents</span></div><div class="rf" id="rfBar"></div>
+          <div class="tw">
+            <table>
+              <thead><tr><th>Assigned To</th><th>Incident ID</th><th>Type</th><th>Severity</th><th>Time</th><th>Evidence</th></tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+
+    </section>
+    <section class="view " id="v-investigation" data-view="investigation" aria-labelledby="viewTitle" hidden>
+      <div class='card inv' id='inv'><div class='ct'><span id='invTitle'>Investigation</span><span id='invSev'></span></div><div id='invBody'></div></div>
+      <p class="hint mono">Select an incident on the Incidents page or a node on the Network topology page to change the host.</p>
+    </section>
+    <section class="view " id="v-evidence" data-view="evidence" aria-labelledby="viewTitle" hidden>
+      <div class='card fev' id='fev'><div class='ct'><span id='fevTitle'>Forensic evidence</span><span class='chip'>Synthetic evidence</span></div><div id='fevBody'></div></div>
+    </section>
+    <section class="view " id="v-timeline" data-view="timeline" aria-labelledby="viewTitle" hidden>
+      <div class="card">
+          <div class="ct">Incident Timeline</div>
+          <div class="sub" id="tlSub">INC-2847 &middot; Ransomware</div>
+          <ul class="tl" id="tl"></ul>
+        </div>
+
+    </section>
+    <section class="view " id="v-queue" data-view="queue" aria-labelledby="viewTitle" hidden>
+      <div class="card"><div class="ct">Recommended actions <span class="chip">simulated</span></div><div id="queList" class="ql"></div><p class="hint mono">Queuing here records nothing, sends nothing and runs nothing. There is no remediation code in this build.</p></div>
+    </section>
+    <section class="view " id="v-topology" data-view="topology" aria-labelledby="viewTitle" hidden>
+      <div class="card topo topo-big">
+          <div class="ct">Network Topology <span class="legend"><span><i style="background:var(--red)"></i>Attack path</span><span><i style="background:var(--teal)"></i>Normal</span></span></div>
+          <svg viewBox="0 0 560 250" role="img" aria-label="Network topology with an attack path through the switch to the finance server and production database">
+            <g fill="none" stroke-width="1.5">
+              <path d="M40 130 C 70 130, 85 112, 120 112" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M120 112 C 150 112, 160 132, 195 132" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M195 132 C 225 132, 235 70, 270 70" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M270 70 C 320 70, 330 40, 380 40" stroke="#2fd8c0" opacity=".7"/>
+              <path d="M380 40 C 430 40, 440 80, 485 80" stroke="#2fd8c0" opacity=".7"/>
+              <path class="atk" d="M195 132 C 235 132, 245 185, 290 185" stroke="#ff5a5f" stroke-width="2" stroke-dasharray="6 5"/>
+              <path class="atk" d="M290 185 C 335 185, 345 140, 395 140" stroke="#ff5a5f" stroke-width="2" stroke-dasharray="6 5"/>
+              <path d="M395 140 C 425 140, 435 210, 470 210" stroke="#2fd8c0" opacity=".7"/>
+            </g>
+            <g font-size="10" fill="#e3f1ee" text-anchor="middle" font-family="Manrope, ui-sans-serif, system-ui, 'Segoe UI', Arial, sans-serif">
+              <g><circle cx="40" cy="130" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="40" y="154">Internet</text></g>
+              <g><circle cx="120" cy="112" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="120" y="136">Firewall</text></g>
+              <g><circle cx="195" cy="132" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="195" y="156">Switch</text></g>
+              <g><circle cx="270" cy="70" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="270" y="94">WS-002</text></g>
+              <g><circle cx="380" cy="40" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="380" y="64">WS-001</text></g>
+              <g><circle cx="485" cy="80" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="485" y="104">Cloud</text></g>
+              <g><circle class="pulse" cx="290" cy="185" r="10" fill="none" stroke="#ff5a5f" stroke-width="1.5"/><circle cx="290" cy="185" r="10" fill="#2a1013" stroke="#ff5a5f"/><text x="290" y="211">FIN-SRV</text></g>
+              <g><circle cx="395" cy="140" r="10" fill="#2a1d0e" stroke="#f4b43c"/><text x="395" y="164">DB-Prod</text></g>
+              <g><circle cx="470" cy="210" r="9" fill="#0d1f1e" stroke="#2fd8c0"/><text x="470" y="234">WS-003</text></g>
+            </g>
+          </svg>
+        </div>
+
+
+      <p class="hint mono">Illustrative sample topology drawn by hand. It is not discovered from a network. Select a node to open its investigation.</p>
+    </section>
+    <section class="view " id="v-global" data-view="global" aria-labelledby="viewTitle" hidden>
+      <section class='gl' aria-labelledby='glH'>
+      <div class='ba-head'><h2 id='glH'>Global Activity Overview</h2><span class='chip'>Demo mode: synthetic data, no live ingestion</span></div>
+      <div class='gl-grid'>
+        <div class='card gl-c'>
+          <div class='ct'>Incident regions <button class='btn' type='button' id='glAuto'>Auto-rotate: on</button></div>
+          <canvas id='globe' tabindex='0' role='img' aria-label='Globe with incident hotspots in Asia Pacific, EMEA and the Americas, and arcs showing synthetic attack paths. Use the region list to select a region.'></canvas>
+          <div class='legend' style='margin-top:8px;flex-wrap:wrap'><span><i style='background:var(--red)'></i>Active incident path</span><span><i style='background:var(--amber)'></i>Suspicious</span><span><i style='background:var(--teal)'></i>Normal traffic</span></div>
+          <div class='mono' style='font-size:11px;color:var(--dim);margin-top:6px'>Drag to rotate. Click a hotspot to select a region.</div>
+        </div>
+        <div class='card'>
+          <div class='ct'>Regions <span class='chip' id='glSel'>Asia Pacific</span></div>
+          <div id='glList'></div>
+          <div class='kvl' id='glStats'></div>
+        </div>
+      </div>
+    </section>
+
+
+    </section>
+    <section class="view " id="v-behavior" data-view="behavior" aria-labelledby="viewTitle" hidden>
+      <section class='ba' aria-labelledby='baH'>
+      <div class='ba-head'><h2 id='baH'>Behavioral Analytics</h2><span class='chip'>Demo mode: synthetic data, no live ingestion</span></div>
+      <div class='ba-grid'>
+        <div class='card' id='baAlert'></div>
+        <div class='card'>
+          <div class='ct'>Behavior flags by event <span class='chip' id='baCount'>6 events</span></div>
+          <div class='tw'><table id='baTable'><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Cloud</th><th>Travel</th><th>Odd time</th><th>Rare</th><th>Priv esc</th><th>Data</th><th>Device</th><th>Score</th></tr></thead><tbody id='baRows'></tbody></table></div>
+        </div>
+        <div class='card'><div class='ct'>Top anomalies</div><div id='baTop'></div></div>
+      </div>
+      <div class='ba-det'>
+        <div class='card'><div class='ct'>User insights</div><pre class='jx' id='jxU'></pre></div>
+        <div class='card'><div class='ct'>Device insights</div><pre class='jx' id='jxD'></pre></div>
+        <div class='card'><div class='ct'>Activity insights</div><pre class='jx' id='jxA'></pre></div>
+      </div>
+      <div class='ba-bot'>
+        <div class='card'><div class='ct'>Activity timeline, last 24 hours <span class='legend'><span><i style='background:var(--teal)'></i>Normal</span><span><i style='background:var(--red)'></i>Anomalous</span></span></div><svg viewBox='0 0 520 150' id='baChart' role='img' aria-label='Hourly activity with anomalous hours highlighted'></svg></div>
+        <div class='card'><div class='ct'>Top action types</div><div id='baActs'></div></div>
+      </div>
+    </section>
+
+
+    </section>
+    <section class="view ask-v" id="v-ask" data-view="ask" aria-labelledby="viewTitle" hidden>
+      <div class='card ask' id='ask'><div class='ct'>Ask H.A.L.O. <span class='chip'>cites evidence</span></div><div class='askl' id='askl' aria-live='polite'></div><div class='sugg' id='sugg'></div><form class='askf' id='askf'><input class='search' id='askq' type='text' placeholder='Why is FIN-SRV flagged?' aria-label='Ask a question about the incident' autocomplete='off'><button class='btn teal' type='submit'>Ask</button></form><div class='mono aerr' id='askerr' role='alert'></div>
+        </div>
+      <p class="hint mono">Working today: a keyword lookup over the sample evidence, with citations. Planned and disabled: a local model through Ollama.</p>
+    </section>
+    <section class="view " id="v-trust" data-view="trust" aria-labelledby="viewTitle" hidden>
+      <div class="card"><div class="ct">Working, simulated and planned</div><div class="tw"><table class="trust"><thead><tr><th>Capability</th><th>Status</th><th>Notes</th></tr></thead><tbody><tr><th scope="row">Page renders offline, no outside requests</th><td><span class="st working">Working</span></td><td>Checked by an automated browser test: no network requests, no policy violations.</td></tr><tr><th scope="row">Untrusted text shown as plain text</th><td><span class="st working">Working</span></td><td>Hostile event, name and IP strings render inert in tests. Unsafe HTML insertion is refused by the code.</td></tr><tr><th scope="row">Evidence citations in Ask H.A.L.O. and summaries</th><td><span class="st working">Working</span></td><td>Each statement lists the event IDs it came from. Known gaps in ID checking are documented.</td></tr><tr><th scope="row">Region filter, search, globe, charts, navigation</th><td><span class="st working">Working</span></td><td>Run in your browser over sample data.</td></tr><tr><th scope="row">Incident, event and host data</th><td><span class="st simulated">Simulated</span></td><td>All synthetic. Nothing is ingested.</td></tr><tr><th scope="row">Health score, SLA 97%, 91% sample confidence, trend numbers</th><td><span class="st simulated">Simulated</span></td><td>Fixed or random sample values. Not calculated from any detection.</td></tr><tr><th scope="row">AI Investigation summary</th><td><span class="st simulated">Simulated</span></td><td>Fixed text. No model is called.</td></tr><tr><th scope="row">Queue for approval</th><td><span class="st simulated">Simulated</span></td><td>Shows a message only. No audit record is written. No action runs.</td></tr><tr><th scope="row">Randomize Sample Data</th><td><span class="st simulated">Simulated</span></td><td>Generates random numbers locally.</td></tr><tr><th scope="row">Live ingestion from endpoint, cloud, SIEM, scanner, firewall</th><td><span class="st planned">Planned</span></td><td>No connectors exist.</td></tr><tr><th scope="row">Model-written explanations (local Ollama)</th><td><span class="st planned">Planned</span></td><td>The adapter is a disabled stub that throws if enabled.</td></tr><tr><th scope="row">Automated or approved remediation</th><td><span class="st planned">Planned</span></td><td>Not implemented. Recommendations only.</td></tr><tr><th scope="row">Audit log and policy engine</th><td><span class="st planned">Planned</span></td><td>Not implemented.</td></tr><tr><th scope="row">Event validator (separate module)</th><td><span class="st working">Working</span></td><td>Tested in isolation. Not yet connected to this console.</td></tr></tbody></table></div><p class="hint mono">Working means it runs in this page and is covered by a test. Simulated means the screen exists but the numbers or actions are fixed or invented. Planned means it does not exist yet.</p></div>
+    </section>
+    <section class="view " id="v-about" data-view="about" aria-labelledby="viewTitle" hidden>
+      <div class="two">
+        <div class="card"><div class="ct">Demo controls</div>
+          <p class="hint">Sample numbers change only on this page. Nothing is fetched.</p>
+          <button class="btn teal" type="button" id="refresh2">Randomize Sample Data</button>
+        </div>
+        <div class="card"><div class="ct">About this build</div>
+          <div class="kvl"><div>Version <b>v12 (view layout)</b></div><div>Derived from <b>v10, unchanged</b></div><div>Data <b>Synthetic</b></div><div>Network use <b>None</b></div><div>Backend <b>None connected</b></div></div>
+          <p class="hint"><a class="jump" href="index.html">Back to the H.A.L.O. Security Triage overview</a></p>
+        </div>
+      </div>
+    </section>
+    </main>
+
+    <div class="foot"><span>Sample data for design review. No live feeds connected.</span><span>H.A.L.O. Sentinel research console</span></div>
+  </div>
+</div>
+</div>
+
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  /* SAFE:START */
+  /* Every value interpolated into html`` is escaped, so event logs, evidence text, IPs, names and any
+     other data are always rendered as text. Only output of html`` is accepted by put(). */
+  function SafeHtml(s) { this.s = s; }
+  function esc(v) { return String(v).replace(/[&<>"'`]/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+  function part(v) { if (v instanceof SafeHtml) return v.s; if (Array.isArray(v)) return v.map(part).join(''); return esc(v == null ? '' : v); }
+  function html(strings) { var out = strings[0]; for (var i = 1; i < arguments.length; i++) out += part(arguments[i]) + strings[i]; return new SafeHtml(out); }
+  function put(node, safe) { if (!(safe instanceof SafeHtml)) throw new Error('Refusing to insert unescaped HTML'); node.innerHTML = safe.s; }
+  /* SAFE:END */
+  var incidents = [
+    { who: 'Sarah Chen', id: 'INC-2847', type: 'Ransomware Activity', sev: 'Critical', time: '02:14 PM', stage: 3 },
+    { who: 'Alex Morgan', id: 'INC-2848', type: 'Unauthorized Access', sev: 'High', time: '02:09 PM', stage: 2 },
+    { who: 'David Lee', id: 'INC-2849', type: 'Data Exfiltration', sev: 'Medium', time: '02:02 PM', stage: 4 },
+    { who: 'Priya Nair', id: 'INC-2850', type: 'Brute Force Login', sev: 'High', time: '01:48 PM', stage: 1 },
+    { who: 'Marco Reyes', id: 'INC-2851', type: 'Phishing Report', sev: 'Low', time: '01:31 PM', stage: 5 }
+  ];
+  var stages = ['Detection', 'Investigation Started', 'Threat Confirmed', 'Containment Initiated', 'Recovery in Progress', 'Resolution'];
+  var times = ['02:01 PM', '02:04 PM', '02:08 PM', '02:11 PM', '02:13 PM', '02:14 PM'];
+  var selected = 0, query = '';
+
+  function el(n, a) { var e = document.createElementNS(NS, n); for (var k in a) e.setAttribute(k, a[k]); return e; }
+  function pol(cx, cy, r, deg) { var a = deg * Math.PI / 180; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+  function arc(cx, cy, r, a0, a1) {
+    var p0 = pol(cx, cy, r, a0), p1 = pol(cx, cy, r, a1);
+    return 'M' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A' + r + ' ' + r + ' 0 ' + ((a1 - a0) > 180 ? 1 : 0) + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2);
+  }
+
+  function drawGauge(score) {
+    var g = document.getElementById('g'); g.textContent = '';
+    var cx = 100, cy = 92, r = 70, start = 135, sweep = 270;
+    g.appendChild(el('path', { d: arc(cx, cy, r, start, start + sweep), fill: 'none', stroke: '#12302d', 'stroke-width': 10, 'stroke-linecap': 'round' }));
+    var end = start + sweep * score / 100;
+    var segs = [[0, 33, '#ff5a5f'], [33, 66, '#f4b43c'], [66, 100, '#2fd8c0']];
+    segs.forEach(function (s) {
+      var a0 = start + sweep * s[0] / 100, a1 = Math.min(end, start + sweep * s[1] / 100);
+      if (a1 > a0) g.appendChild(el('path', { d: arc(cx, cy, r, a0, a1), fill: 'none', stroke: s[2], 'stroke-width': 10, 'stroke-linecap': 'butt' }));
+    });
+    var tip = pol(cx, cy, r, end);
+    g.appendChild(el('circle', { cx: tip[0], cy: tip[1], r: 5, fill: '#e3f1ee', stroke: '#040b0b', 'stroke-width': 2 }));
+    document.getElementById('score').textContent = score;
+  }
+
+  function drawRows() {
+    var tb = document.getElementById('rows'); tb.textContent = '';
+    var shown = 0;
+    incidents.forEach(function (it, i) {
+      var hay = (it.who + ' ' + it.id + ' ' + it.type).toLowerCase();
+      if (query && hay.indexOf(query) < 0) return;
+      shown++;
+      var tr = document.createElement('tr');
+      if (i === selected) tr.className = 'sel';
+      tr.tabIndex = 0;
+      var ini = it.who.split(' ').map(function (w) { return w[0]; }).join('');
+      put(tr, html`<td><span class="who"><i>${ini}</i>${it.who}</span></td><td class="mono">${it.id}</td><td>${it.type}</td><td><span class="sev ${it.sev}">${it.sev}</span></td><td class="mono">${it.time}</td>`);
+      tr.addEventListener('click', function () { selected = i; drawRows(); drawTimeline(); });
+      tr.addEventListener('keydown', function (e) { if (e.key === 'Enter') { selected = i; drawRows(); drawTimeline(); } });
+      tb.appendChild(tr);
+    });
+    document.getElementById('count').textContent = shown + (shown === 1 ? ' incident' : ' incidents');
+  }
+
+  function drawTimeline() {
+    var it = incidents[selected];
+    document.getElementById('tlSub').textContent = it.id + ' · ' + it.type;
+    var ul = document.getElementById('tl'); ul.textContent = '';
+    stages.forEach(function (s, i) {
+      var cls = i < it.stage ? 'done' : (i === it.stage ? 'cur' : '');
+      var st = i < it.stage ? 'Resolved' : (i === it.stage ? 'Monitoring' : 'Pending');
+      var li = document.createElement('li'); li.className = cls;
+      put(li, html`<span class="dot"><i></i></span><span class="nm">${s}<span class="tm">${i <= it.stage ? times[i] : '--:--'}</span></span><span class="st">${st}</span>`);
+      ul.appendChild(li);
+    });
+  }
+
+  function series(n, seed, amp) {
+    var out = [];
+    for (var i = 0; i < n; i++) out.push(Math.max(2, Math.round(amp + amp * 0.6 * Math.sin(i * 0.7 + seed) + amp * 0.3 * Math.sin(i * 1.9 + seed * 2))));
+    return out;
+  }
+  function drawChart(mode, bump) {
+    var svg = document.getElementById('chart'); svg.textContent = '';
+    var n = mode === '24' ? 24 : 7;
+    var a = series(n, 1 + bump, 14), b = series(n, 2.4 + bump, 11);
+    var L = 28, R = 252, T = 10, B = 124, max = 40;
+    function x(i) { return L + (R - L) * i / (n - 1); }
+    function y(v) { return B - (B - T) * v / max; }
+    [0, 10, 20, 30, 40].forEach(function (t) {
+      svg.appendChild(el('line', { x1: L, x2: R, y1: y(t), y2: y(t), stroke: '#153431', 'stroke-width': 1 }));
+      var tx = el('text', { x: L - 6, y: y(t) + 3, 'text-anchor': 'end', fill: '#86a39e', 'font-size': 9 }); tx.textContent = t; svg.appendChild(tx);
+    });
+    var labels = mode === '24' ? [[0, '00:00'], [6, '06:00'], [12, '12:00'], [18, '18:00'], [23, '23:00']] : [[0, 'Mon'], [1, 'Tue'], [2, 'Wed'], [3, 'Thu'], [4, 'Fri'], [5, 'Sat'], [6, 'Sun']];
+    labels.forEach(function (l) {
+      var tx = el('text', { x: x(l[0]), y: 140, 'text-anchor': l[0] === n - 1 ? 'end' : 'middle', fill: '#86a39e', 'font-size': 9 }); tx.textContent = l[1]; svg.appendChild(tx);
+    });
+    function line(data, color) {
+      var d = data.map(function (v, i) { return (i ? 'L' : 'M') + x(i).toFixed(1) + ' ' + y(v).toFixed(1); }).join(' ');
+      svg.appendChild(el('path', { d: d + ' L' + R + ' ' + B + ' L' + L + ' ' + B + ' Z', fill: color, opacity: 0.12 }));
+      svg.appendChild(el('path', { d: d, fill: 'none', stroke: color, 'stroke-width': 1.8, 'stroke-linejoin': 'round' }));
+      svg.appendChild(el('circle', { cx: x(n - 1), cy: y(data[n - 1]), r: 3.2, fill: color }));
+    }
+    line(a, '#2fd8c0'); line(b, '#f4b43c');
+    document.getElementById('rng').textContent = mode === '24' ? '24 Hours' : '7 Days';
+  }
+
+  var bump = 0;
+  function rangeMode() { return document.getElementById('range').value; }
+  document.getElementById('range').addEventListener('change', function () { drawChart(rangeMode(), bump); });
+  document.getElementById('q').addEventListener('input', function (e) { query = e.target.value.trim().toLowerCase(); drawRows(); });
+  document.getElementById('refresh').addEventListener('click', function () {
+    bump += 0.9;
+    var active = 34 + Math.round(Math.abs(Math.sin(bump)) * 9), crit = 3 + Math.round(Math.abs(Math.cos(bump)) * 4), score = 86 + Math.round(Math.abs(Math.sin(bump * 1.3)) * 9);
+    ['kActive', 't1'].forEach(function (id) { document.getElementById(id).textContent = active; });
+    ['kCrit', 't2'].forEach(function (id) { document.getElementById(id).textContent = crit; });
+    document.getElementById('t3').textContent = 120 + Math.round(Math.abs(Math.sin(bump * 2)) * 14);
+    document.getElementById('attrN').textContent = 196 + Math.round(Math.abs(Math.cos(bump * 1.7)) * 14);
+    drawGauge(score); drawChart(rangeMode(), bump); sparks();
+  });
+
+  var hosts = {
+    'Internet': { role: 'External network', risk: 'High', conn: ['Firewall'], sus: ['41 failed RDP logins from 198.51.100.23 in 6 minutes', 'Same source probed 3 other hosts'], ev: ['03:42:01 auth-fail user=admin src=198.51.100.23 [firewall log]', '03:48:07 auth-success user=admin src=198.51.100.23 [FIN-SRV auth log]'], lat: [['Internet', 1], ['Firewall', 1], ['Switch', 1], ['FIN-SRV', 1]], lt: 'Observed entry path', rec: 'Block source IP at the firewall' },
+    'Firewall': { role: 'Perimeter control', risk: 'Low', conn: ['Internet', 'Switch'], sus: ['Rule allowing inbound 3389 matched 41 times from one source'], ev: ['03:42:01 allow tcp/3389 src=198.51.100.23 rule=rdp-admin-legacy [firewall log]'], lat: [['Firewall', 1], ['Switch', 1]], lt: 'Traffic passed through', rec: 'Review legacy RDP rule' },
+    'Switch': { role: 'Core switch', risk: 'Medium', conn: ['Firewall', 'WS-002', 'FIN-SRV'], sus: ['New east-west flow from WS-002 segment to FIN-SRV'], ev: ['03:49:12 flow src=WS-002 dst=FIN-SRV tcp/445 first-seen [netflow]'], lat: [['Switch', 1], ['FIN-SRV', 0], ['DB-Prod', 0]], lt: 'Possible movement', rec: 'Segment FIN-SRV VLAN' },
+    'FIN-SRV': { role: 'Finance server (compromised)', risk: 'Critical', conn: ['Switch', 'DB-Prod'], sus: ['Valid admin login right after 41 failures', 'New service installed at 03:51', '2.1 GB outbound to an unknown host'], ev: ['03:48:07 auth-success user=admin src=198.51.100.23 [auth log]', '03:51:30 service-install name=svchelp path=C:/Temp [process events]', '03:55:02 outbound 2.1GB dst=203.0.113.77 [netflow]'], lat: [['FIN-SRV', 1], ['DB-Prod', 0], ['WS-003', 0]], lt: 'Projected path, unconfirmed', rec: 'Isolate FIN-SRV from the network' },
+    'DB-Prod': { role: 'Production database', risk: 'High', conn: ['FIN-SRV', 'WS-003'], sus: ['First-ever login from the FIN-SRV service account', 'Unusually large query result set'], ev: ['03:57:44 db-login acct=svc-fin src=FIN-SRV first-seen [db audit]'], lat: [['DB-Prod', 0], ['WS-003', 0]], lt: 'Projected path, unconfirmed', rec: 'Revoke svc-fin session' },
+    'WS-001': { role: 'Workstation', risk: 'Low', conn: ['WS-002', 'Cloud'], sus: [], ev: [], lat: [], lt: '', rec: '' },
+    'WS-002': { role: 'Workstation', risk: 'Low', conn: ['Switch', 'WS-001'], sus: [], ev: [], lat: [], lt: '', rec: '' },
+    'WS-003': { role: 'Workstation', risk: 'Low', conn: ['DB-Prod'], sus: [], ev: [], lat: [], lt: '', rec: '' },
+    'Cloud': { role: 'Cloud workloads', risk: 'Low', conn: ['WS-001'], sus: [], ev: [], lat: [], lt: '', rec: '' }
+  };
+  function selectHost(k) {
+    var h = hosts[k]; if (!h) return;
+    document.querySelectorAll('.topo g.node').forEach(function (g) { g.classList.toggle('sel', g.dataset.k === k); });
+    document.getElementById('invTitle').textContent = 'Investigation: ' + k + ' (' + h.role + ')';
+    put(document.getElementById('invSev'), html`<span class='sev ${h.risk === 'Low' ? 'Low' : h.risk}'>${h.risk === 'Low' ? 'No findings' : h.risk}</span>`);
+    var conn = h.conn.map(function (c) { return html`<button class='cn' type='button' data-k='${c}'>${c}</button>`; });
+    var sus = h.sus.length ? html`<ul>${h.sus.map(function (s) { return html`<li>${s}</li>`; })}</ul>` : html`<span class="mono">Nothing suspicious in the sample data.</span>`;
+    var ev = h.ev.length ? html`<div class='ev'>${h.ev.map(function (s) { return html`<span>${s}</span>`; })}</div>` : html`<span class="mono">No evidence attached.</span>`;
+    var lat = h.lat.length ? html`<div class='pth'>${h.lat.map(function (p, i) { return html`${i ? html`<span>&rarr;</span>` : ''}<b class='${p[1] ? 'real' : ''}'>${p[0]}</b>`; })}</div><div class='mono' style='margin-top:6px'>${h.lt}</div>` : html`<span class="mono">No lateral movement indicated.</span>`;
+    var act = h.rec ? html`<div class='invact'><button class='btn teal' type='button' id='invAct'>Queue for approval (simulated): ${h.rec}</button><span class='mono' id='invRes' role='status' aria-live='polite'>Simulated action. Recommendation only: nothing is saved or sent, and real remediation is disabled in this prototype.</span></div>` : html``;
+    put(document.getElementById('invBody'), html`<div class='inv-grid'><div><h4>Connections</h4>${conn}<h4 style='margin-top:10px'>Suspicious activity</h4>${sus}</div><div><h4>Evidence (sample)</h4>${ev}<h4 style='margin-top:10px'>Possible lateral movement</h4>${lat}</div></div>${act}`);
+    document.querySelectorAll('#invBody .cn').forEach(function (b) { b.addEventListener('click', function () { selectHost(b.dataset.k); }); });
+    var a = document.getElementById('invAct');
+    if (a) a.addEventListener('click', function () { document.getElementById('invRes').textContent = 'Simulated at ' + new Date().toLocaleTimeString('en-US') + '. Nothing was saved or sent and no audit record was written. No action executed.'; });
+  }
+  document.querySelectorAll('.topo svg g[font-size] > g').forEach(function (g) {
+    var t = g.querySelector('text'); if (!t) return;
+    var key = t.textContent.trim();
+    g.classList.add('node'); g.dataset.k = key; g.setAttribute('tabindex', '0'); g.setAttribute('role', 'button'); g.setAttribute('aria-label', 'Investigate ' + key);
+    g.addEventListener('click', function () { selectHost(key); });
+    g.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectHost(key); } });
+  });
+  selectHost('FIN-SRV');
+  var askLog = document.getElementById('askl');
+  function addMsg(cls, text, cites) {
+    var d = document.createElement('div'); d.className = 'msg ' + cls;
+    var p = document.createElement('div'); p.textContent = text; d.appendChild(p);
+    if (cites && cites.length) {
+      var c = document.createElement('div'); c.className = 'cites';
+      cites.forEach(function (x) {
+        var b = document.createElement('button'); b.type = 'button'; b.className = 'cn'; b.textContent = x.h + ' | ' + x.t;
+        b.addEventListener('click', function () { selectHost(x.h); window.HaloNav.go('investigation'); });
+        c.appendChild(b);
+      });
+      d.appendChild(c);
+    }
+    askLog.appendChild(d); askLog.scrollTop = askLog.scrollHeight;
+  }
+  function evidence(filter) {
+    var out = [];
+    Object.keys(hosts).forEach(function (k) { hosts[k].ev.forEach(function (t) { if (!filter || filter.test(t)) out.push({ h: k, t: t }); }); });
+    return out;
+  }
+  function answer(q) {
+    var s = q.toLowerCase(), hit = null;
+    var im = /inc-\d{4}/.exec(s);
+    if (im) { var sm = HaloCore.summarize(im[0].toUpperCase()); if (sm) return { text: sm.text, cites: sm.refs.map(function (id) { var e = HaloCore.eventById(id); return { h: e.host || 'Internet', t: HaloCore.fmtEvent(e) }; }) }; }
+    Object.keys(hosts).forEach(function (k) { if (s.indexOf(k.toLowerCase()) >= 0) hit = k; });
+    if (hit && hosts[hit].sus.length) {
+      var h = hosts[hit];
+      return { text: hit + ' is rated ' + h.risk + '. ' + h.sus.join('. ') + '.', cites: h.ev.map(function (t) { return { h: hit, t: t }; }) };
+    }
+    if (hit) return { text: hit + ' has no findings in the sample evidence.', cites: [] };
+    if (/login|auth|brute|rdp|password/.test(s)) { var a = evidence(/auth|login|rdp/i); return { text: a.length + ' authentication events in the sample evidence. The pattern is repeated failures followed by a successful admin login from one external IP.', cites: a }; }
+    if (/exfil|outbound|leav|data|transfer/.test(s)) { var o = evidence(/outbound|db-login/i); return { text: 'Two signals point to data movement: a large outbound transfer from FIN-SRV and a first-time database login from its service account.', cites: o }; }
+    if (/lateral|spread|next|move/.test(s)) return { text: 'The projected path is FIN-SRV to DB-Prod to WS-003. Only the first hop is confirmed. The rest is unconfirmed.', cites: evidence(/service-install|db-login/i) };
+    if (/critical|worst|priorit|urgent/.test(s)) return { text: 'FIN-SRV is Critical. DB-Prod and the Internet source are High.', cites: evidence(/service-install|outbound/i) };
+    return { text: 'I can only answer from the sample evidence on this page. Try asking about a host, logins, data leaving the network, or lateral movement.', cites: [] };
+  }
+  function ask(q) {
+    addMsg('q', q);
+    var r = answer(q);
+    addMsg('a', r.text, r.cites);
+  }
+  addMsg('a', 'Ask about any host or pattern. Answers come only from the sample evidence on this page, and each one lists the log lines it used. No model is called in this prototype.');
+  ['Why is FIN-SRV flagged?', 'Show suspicious logins', 'Any data leaving the network?', 'What could spread next?'].forEach(function (t) {
+    var b = document.createElement('button'); b.type = 'button'; b.textContent = t;
+    b.addEventListener('click', function () { document.getElementById('askerr').textContent = ''; ask(t); });
+    document.getElementById('sugg').appendChild(b);
+  });
+  var askQ = document.getElementById('askq');
+  askQ.addEventListener('input', function () { document.getElementById('askerr').textContent = ''; });
+  document.getElementById('askf').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var v = askQ.value.trim();
+    if (!v) { document.getElementById('askerr').textContent = 'Type a question first.'; return; }
+    ask(v); askQ.value = '';
+  });
+  var BW = { travel: ['Impossible travel', 32], time: ['Unusual time', 14], rare: ['Rare action', 12], priv: ['Privilege escalation', 22], xfer: ['Abnormal data transfer', 18], device: ['New device', 8] };
+  var BK = ['travel', 'time', 'rare', 'priv', 'xfer', 'device'];
+  var busers = {
+    'a.reyes@example.com': { role: 'Cloud administrator', department: 'Finance IT', usualHours: '09:00-18:00', usualCountries: ['PH'], mfaEnrolled: true },
+    'm.santos@example.com': { role: 'Developer', department: 'Platform', usualHours: '08:00-17:00', usualCountries: ['PH'], mfaEnrolled: true },
+    'j.lim@example.com': { role: 'Analyst', department: 'Reporting', usualHours: '09:00-18:00', usualCountries: ['PH', 'SG'], mfaEnrolled: true },
+    's.park@example.com': { role: 'Support lead', department: 'Operations', usualHours: '10:00-19:00', usualCountries: ['PH'], mfaEnrolled: false },
+    't.cruz@example.com': { role: 'Engineer', department: 'Platform', usualHours: '09:00-18:00', usualCountries: ['PH'], mfaEnrolled: true }
+  };
+  var bev = [
+    ['EVT-2201', '03:48 AM', 'a.reyes@example.com', 'ConsoleLogin', 'AWS', '198.51.100.23', 'Frankfurt, DE', ['travel', 'time', 'priv', 'xfer', 'device'], 'DEV-7731', 'Windows 11', 'Previous login: Manila, PH at 03:20 AM'],
+    ['EVT-2202', '03:51 AM', 'a.reyes@example.com', 'CreateAccessKey', 'AWS', '198.51.100.23', 'Frankfurt, DE', ['time', 'rare', 'priv'], 'DEV-7731', 'Windows 11', 'First access key created by this user'],
+    ['EVT-2203', '02:07 AM', 'm.santos@example.com', 'AssumeRole', 'Azure', '203.0.113.40', 'Manila, PH', ['time', 'rare'], 'DEV-2210', 'macOS 15', 'Role not used in the last 90 days'],
+    ['EVT-2204', '01:55 PM', 'j.lim@example.com', 'DownloadBlob', 'Azure', '203.0.113.18', 'Singapore, SG', ['xfer'], 'DEV-5120', 'Windows 11', '1.8 GB, about 9x the 30-day average'],
+    ['EVT-2205', '01:12 PM', 's.park@example.com', 'SignIn', 'IdP', '203.0.113.52', 'Manila, PH', ['device'], 'DEV-9904', 'Android 15', 'Device not seen before'],
+    ['EVT-2206', '11:40 AM', 't.cruz@example.com', 'ListBuckets', 'GCP', '203.0.113.9', 'Manila, PH', [], 'DEV-3318', 'Linux', 'Matches baseline']
+  ];
+  var baSel = 0;
+  function bscore(f) { var s = 0; f.forEach(function (k) { s += BW[k][1]; }); return Math.min(100, s); }
+  function blvl(s) { return s >= 70 ? 'High' : (s >= 40 ? 'Medium' : 'Low'); }
+  function renderBA() {
+    var e = bev[baSel], s = bscore(e[7]), lv = blvl(s);
+    put(document.getElementById('baRows'), html`${bev.map(function (r, i) {
+      var sc = bscore(r[7]);
+      return html`<tr data-i='${i}' tabindex='0' class='${i === baSel ? 'sel' : ''}'><td class='mono'>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td class='mono'>${r[4]}</td>${BK.map(function (k) { var on = r[7].indexOf(k) >= 0; return html`<td><span class='fg ${on ? 'on' : ''}'>${on ? 1 : 0}</span></td>`; })}<td><span class='sc ${blvl(sc)}'>${sc}</span></td></tr>`;
+    })}`);
+    document.querySelectorAll('#baRows tr').forEach(function (tr) {
+      function pick() { baSel = +tr.dataset.i; renderBA(); }
+      tr.addEventListener('click', pick);
+      tr.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') pick(); });
+    });
+    var why = e[7].length ? e[7].map(function (k) { return html`<li><span>${BW[k][0]}</span><b>+${BW[k][1]}</b></li>`; }) : html`<li><span>No behavior flags</span><b>0</b></li>`;
+    put(document.getElementById('baAlert'), html`<div class='ct'>Anomaly alert <span class='chip'>demo</span></div><div class='rs ${lv}'>${s}</div><span class='sev ${lv}'>${lv}</span><div class='kvl'><div>User <b>${e[2]}</b></div><div>Event <b>${e[0]}</b></div><div>Source <b>${e[4]}</b></div><div>Location <b>${e[6]}</b></div><div>Status <b>New</b></div><div>Assigned <b>Unassigned</b></div></div><div class='label mono' style='font-size:10px;letter-spacing:.1em;color:var(--dim)'>WHY THIS SCORE</div><ul class='why'>${why}</ul><div class='mono' style='font-size:10.5px;color:var(--dim);margin-bottom:10px'>Rule-based: weighted flags, capped at 100. No model. Scores are computed from fixed weights on synthetic events.</div><button class='btn teal' type='button' id='baOpen'>Open in incident</button>`);
+    document.getElementById('baOpen').addEventListener('click', function () { selectHost('FIN-SRV'); window.HaloNav.go('investigation'); });
+    var u = busers[e[2]];
+    document.getElementById('jxU').textContent = JSON.stringify({ user: e[2], role: u.role, department: u.department, usualHours: u.usualHours, usualCountries: u.usualCountries, mfaEnrolled: u.mfaEnrolled }, null, 2);
+    document.getElementById('jxD').textContent = JSON.stringify({ deviceId: e[8], os: e[9], managed: e[8] !== 'DEV-7731', firstSeenForUser: e[7].indexOf('device') >= 0 }, null, 2);
+    document.getElementById('jxA').textContent = JSON.stringify({ eventId: e[0], eventName: e[3], cloud: e[4], time: e[1], sourceIp: e[5], location: e[6], flags: e[7], note: e[10] }, null, 2);
+    var best = {};
+    bev.forEach(function (r, i) { var sc = bscore(r[7]); if (!(r[2] in best) || sc > best[r[2]].sc) best[r[2]] = { sc: sc, i: i, r: r }; });
+    var list = Object.keys(best).map(function (k) { return best[k]; }).sort(function (a, b) { return b.sc - a.sc; }).slice(0, 4);
+    var top = document.getElementById('baTop'); top.textContent = ''; top.className = 'top';
+    list.forEach(function (x) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'tr';
+      put(b, html`<span class='sc ${blvl(x.sc)}'>${x.sc}</span><span><span class='u'>${x.r[2]}</span><br><span class='r'>${x.r[7].map(function (k) { return BW[k][0]; }).join(', ') || 'No flags'}</span></span>`);
+      b.addEventListener('click', function () { baSel = x.i; renderBA(); });
+      top.appendChild(b);
+    });
+  }
+  function drawBaTimeline() {
+    var svg = document.getElementById('baChart'); svg.textContent = '';
+    var d = [14, 9, 21, 38, 10, 8, 8, 15, 40, 62, 75, 80, 70, 78, 82, 76, 60, 44, 30, 22, 18, 16, 12, 10], hot = [2, 3];
+    var L = 26, R = 512, B = 118, T = 8, mx = 90, bw = (R - L) / 24;
+    [0, 30, 60, 90].forEach(function (t) {
+      var y = B - (B - T) * t / mx;
+      svg.appendChild(el('line', { x1: L, x2: R, y1: y, y2: y, stroke: '#153431', 'stroke-width': 1 }));
+      var tx = el('text', { x: L - 5, y: y + 3, 'text-anchor': 'end', fill: '#86a39e', 'font-size': 9 }); tx.textContent = t; svg.appendChild(tx);
+    });
+    d.forEach(function (v, i) {
+      var h = (B - T) * v / mx, isHot = hot.indexOf(i) >= 0;
+      svg.appendChild(el('rect', { x: L + i * bw + 2, y: B - h, width: bw - 4, height: h, rx: 2, fill: isHot ? '#ff5a5f' : '#2fd8c0', opacity: isHot ? 0.95 : 0.55 }));
+    });
+    [0, 6, 12, 18, 23].forEach(function (i) {
+      var tx = el('text', { x: L + i * bw + bw / 2, y: 136, 'text-anchor': 'middle', fill: '#86a39e', 'font-size': 9 }); tx.textContent = (i < 10 ? '0' : '') + i + ':00'; svg.appendChild(tx);
+    });
+  }
+  function drawBaActs() {
+    var a = [['ConsoleLogin', 1842], ['GetObject', 1561], ['AssumeRole', 1210], ['DescribeInstances', 962], ['CreateAccessKey', 37]], mx = 1842;
+    document.getElementById('baActs').className = 'ab';
+    put(document.getElementById('baActs'), html`${a.map(function (r) { return html`<div><div class='l'><span>${r[0]}</span><span class='mono'>${r[1].toLocaleString('en-US')}</span></div><div class='t'><i class='${r[0] === 'CreateAccessKey' ? 'hot' : ''}' style='width:${(r[1] / mx * 100).toFixed(1)}%'></i></div></div>`; })}`);
+  }
+  renderBA(); drawBaTimeline(); drawBaActs();
+  var GL = {
+    regions: [
+      { name: 'Asia Pacific', city: 'Manila', lat: 14.6, lon: 121.0, n: 22, crit: 4, top: 'Ransomware Activity', c: '#ff5a5f' },
+      { name: 'EMEA', city: 'Frankfurt', lat: 50.1, lon: 8.7, n: 9, crit: 1, top: 'Brute Force Login', c: '#f4b43c' },
+      { name: 'Americas', city: 'Virginia', lat: 38.9, lon: -77.4, n: 7, crit: 0, top: 'Phishing Report', c: '#2fd8c0' }
+    ],
+    arcs: [
+      { a: [8.7, 50.1], b: [121.0, 14.6], c: '#ff5a5f', w: 2, o: 0 },
+      { a: [-46.6, -23.5], b: [121.0, 14.6], c: '#f4b43c', w: 1.4, o: 0.35 },
+      { a: [-77.4, 38.9], b: [8.7, 50.1], c: '#2fd8c0', w: 1.2, o: 0.6 },
+      { a: [103.8, 1.35], b: [121.0, 14.6], c: '#2fd8c0', w: 1.2, o: 0.8 }
+    ]
+  };
+  var LAND = [
+    [[-168,66],[-156,71],[-130,70],[-110,72],[-95,70],[-85,68],[-80,63],[-93,58],[-83,52],[-79,55],[-77,62],[-70,60],[-62,58],[-56,52],[-60,46],[-67,44],[-70,41],[-76,36],[-81,31],[-80,26],[-83,29],[-90,29],[-97,26],[-97,21],[-91,19],[-87,21],[-88,16],[-83,10],[-79,9],[-82,8],[-86,12],[-92,15],[-105,20],[-110,24],[-113,31],[-117,32],[-121,35],[-124,41],[-124,48],[-130,54],[-138,59],[-148,61],[-158,58],[-165,60]],
+    [[-55,60],[-45,60],[-22,70],[-20,82],[-60,82],[-72,78],[-58,70]],
+    [[-80,9],[-72,12],[-62,10],[-52,5],[-50,0],[-35,-5],[-35,-10],[-40,-22],[-48,-26],[-54,-34],[-58,-39],[-65,-42],[-66,-48],[-69,-53],[-74,-52],[-73,-40],[-71,-30],[-70,-18],[-76,-14],[-81,-5],[-80,0],[-78,5]],
+    [[-10,36],[-9,43],[-2,44],[-4,48],[2,51],[8,54],[10,57],[5,62],[12,66],[20,70],[30,70],[40,67],[40,60],[30,56],[28,46],[27,41],[24,38],[20,40],[16,38],[10,44],[3,43],[-1,37]],
+    [[-17,21],[-10,30],[-5,36],[10,37],[20,33],[32,31],[34,28],[38,18],[43,12],[51,12],[46,2],[40,-5],[40,-15],[35,-24],[32,-29],[25,-34],[18,-34],[13,-24],[12,-10],[9,-1],[9,4],[0,5],[-8,4],[-13,9],[-17,14]],
+    [[27,41],[38,42],[48,46],[55,52],[60,60],[68,70],[80,74],[100,77],[115,74],[140,72],[165,70],[180,66],[170,60],[160,53],[156,58],[142,59],[137,54],[140,48],[131,43],[128,38],[127,34],[122,40],[118,38],[122,31],[120,24],[110,20],[108,15],[109,11],[105,9],[101,13],[100,6],[104,1],[98,8],[94,17],[91,22],[86,20],[80,15],[77,8],[73,17],[72,21],[67,24],[61,25],[57,26],[51,28],[48,30],[50,26],[56,24],[59,22],[55,17],[44,13],[42,17],[38,24],[35,29],[34,31],[36,35],[36,37],[30,37]],
+    [[114,-22],[122,-18],[130,-12],[137,-12],[142,-11],[146,-19],[153,-26],[151,-34],[147,-39],[140,-38],[135,-34],[124,-34],[115,-34],[113,-26]]
+  ];
+  function inPoly(lon, lat, p) {
+    var c = false;
+    for (var i = 0, j = p.length - 1; i < p.length; j = i++) {
+      var xi = p[i][0], yi = p[i][1], xj = p[j][0], yj = p[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) c = !c;
+    }
+    return c;
+  }
+  function gvec(lon, lat) { var a = lat * Math.PI / 180, b = lon * Math.PI / 180; return [Math.cos(a) * Math.cos(b), Math.cos(a) * Math.sin(b), Math.sin(a)]; }
+  var dots = [];
+  for (var la = -56; la <= 78; la += 3) {
+    var stp = Math.max(3, 3 / Math.cos(la * Math.PI / 180));
+    for (var lo = -180; lo <= 180; lo += stp) {
+      for (var pi = 0; pi < LAND.length; pi++) { if (inPoly(lo, la, LAND[pi])) { dots.push(gvec(lo, la)); break; } }
+    }
+  }
+  GL.arcs.forEach(function (r) {
+    r.va = gvec(r.a[0], r.a[1]); r.vb = gvec(r.b[0], r.b[1]);
+    r.om = Math.acos(Math.max(-1, Math.min(1, r.va[0] * r.vb[0] + r.va[1] * r.vb[1] + r.va[2] * r.vb[2])));
+  });
+  var cv = document.getElementById('globe'), g2 = cv.getContext('2d');
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var gs = { lon0: 100, lat0: 18, tLon: null, tLat: null, auto: !reduced, sel: 0, w: 600, h: 420, cx: 300, cy: 210, R: 170, drag: null, hot: [], vis: true, last: 0 };
+  function gview(v) {
+    var l = gs.lon0 * Math.PI / 180, p = gs.lat0 * Math.PI / 180;
+    var x1 = v[0] * Math.cos(l) + v[1] * Math.sin(l), y1 = -v[0] * Math.sin(l) + v[1] * Math.cos(l), z1 = v[2];
+    var x2 = x1 * Math.cos(p) + z1 * Math.sin(p), up = z1 * Math.cos(p) - x1 * Math.sin(p);
+    return { x: gs.cx + gs.R * y1, y: gs.cy - gs.R * up, z: x2 };
+  }
+  function gline(pts) {
+    var pen = false; g2.beginPath();
+    pts.forEach(function (p) { if (p.z > 0) { if (!pen) { g2.moveTo(p.x, p.y); pen = true; } else g2.lineTo(p.x, p.y); } else pen = false; });
+    g2.stroke();
+  }
+  function gsize() {
+    var dpr = window.devicePixelRatio || 1;
+    gs.w = cv.clientWidth || 600; gs.h = cv.clientHeight || 420;
+    cv.width = Math.round(gs.w * dpr); cv.height = Math.round(gs.h * dpr);
+    g2.setTransform(dpr, 0, 0, dpr, 0, 0);
+    gs.cx = gs.w / 2; gs.cy = gs.h / 2; gs.R = Math.min(gs.w, gs.h) * 0.42;
+  }
+  function grender(t) {
+    var w = gs.w, h = gs.h, i, j;
+    g2.clearRect(0, 0, w, h);
+    var grd = g2.createRadialGradient(gs.cx - gs.R * 0.3, gs.cy - gs.R * 0.3, gs.R * 0.1, gs.cx, gs.cy, gs.R);
+    grd.addColorStop(0, '#10403d'); grd.addColorStop(1, '#061312');
+    g2.fillStyle = grd; g2.beginPath(); g2.arc(gs.cx, gs.cy, gs.R, 0, 6.2832); g2.fill();
+    g2.lineWidth = 1; g2.strokeStyle = 'rgba(47,216,192,.5)'; g2.stroke();
+    g2.strokeStyle = 'rgba(47,216,192,.12)'; g2.beginPath(); g2.arc(gs.cx, gs.cy, gs.R + 7, 0, 6.2832); g2.stroke();
+    g2.strokeStyle = 'rgba(47,216,192,.13)';
+    for (i = -180; i < 180; i += 30) { var m = []; for (j = -80; j <= 80; j += 5) m.push(gview(gvec(i, j))); gline(m); }
+    for (i = -60; i <= 60; i += 30) { var q = []; for (j = -180; j <= 180; j += 5) q.push(gview(gvec(j, i))); gline(q); }
+    for (i = 0; i < dots.length; i++) {
+      var p = gview(dots[i]);
+      if (p.z > 0) { g2.fillStyle = 'rgba(47,216,192,' + (0.22 + 0.7 * p.z).toFixed(2) + ')'; g2.fillRect(p.x - 1, p.y - 1, 2, 2); }
+    }
+    GL.arcs.forEach(function (r) {
+      var pts = [], k;
+      for (k = 0; k <= 40; k++) { pts.push(garc(r, k / 40)); }
+      g2.strokeStyle = r.c; g2.globalAlpha = 0.85; g2.lineWidth = r.w; gline(pts); g2.globalAlpha = 1;
+      var d = garc(r, ((t || 0) / 2600 + r.o) % 1);
+      if (d.z > 0) { g2.save(); g2.shadowColor = r.c; g2.shadowBlur = 10; g2.fillStyle = r.c; g2.beginPath(); g2.arc(d.x, d.y, 2.8, 0, 6.2832); g2.fill(); g2.restore(); }
+    });
+    g2.font = '600 12px Manrope, ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif'; g2.textBaseline = 'middle';
+    GL.regions.forEach(function (r, n) {
+      var p = gview(gvec(r.lon, r.lat)); gs.hot[n] = p;
+      if (p.z <= 0.02) return;
+      var ph = reduced ? 0.3 : (((t || 0) / 1000) + n * 0.33) % 1, on = n === gs.sel;
+      g2.strokeStyle = r.c; g2.globalAlpha = 1 - ph; g2.lineWidth = 1.5; g2.beginPath(); g2.arc(p.x, p.y, 6 + ph * 18, 0, 6.2832); g2.stroke(); g2.globalAlpha = 1;
+      g2.save(); g2.shadowColor = r.c; g2.shadowBlur = 12; g2.fillStyle = r.c; g2.beginPath(); g2.arc(p.x, p.y, on ? 6.5 : 4.5, 0, 6.2832); g2.fill(); g2.restore();
+      if (on) { g2.strokeStyle = '#ffffff'; g2.lineWidth = 1.5; g2.beginPath(); g2.arc(p.x, p.y, 10, 0, 6.2832); g2.stroke(); }
+      var lb = r.city + '  ' + r.n, left = p.x > w - 120;
+      g2.textAlign = left ? 'right' : 'left'; g2.fillStyle = '#e3f1ee'; g2.fillText(lb, p.x + (left ? -14 : 14), p.y - 14);
+    });
+  }
+  function garc(r, t) {
+    var s = Math.sin(r.om) || 1, a = Math.sin((1 - t) * r.om) / s, b = Math.sin(t * r.om) / s;
+    var lift = 1 + 0.3 * Math.sin(Math.PI * t) * Math.min(1, r.om / 2);
+    return gview([(a * r.va[0] + b * r.vb[0]) * lift, (a * r.va[1] + b * r.vb[1]) * lift, (a * r.va[2] + b * r.vb[2]) * lift]);
+  }
+  function glList() {
+    var total = GL.regions.reduce(function (s, r) { return s + r.n; }, 0), r = GL.regions[gs.sel];
+    document.getElementById('glSel').textContent = r.name;
+    put(document.getElementById('glList'), html`${GL.regions.map(function (x, i) {
+      return html`<button type='button' class='glr ${i === gs.sel ? 'on' : ''}' data-i='${i}'><span>${x.name}</span><span class='mono'>${x.n} open</span><span class='bar'><i style='width:${(x.n / total * 100).toFixed(1)}%'></i></span></button>`;
+    })}`);
+    document.querySelectorAll('#glList .glr').forEach(function (b) { b.addEventListener('click', function () { gpick(+b.dataset.i, false); }); });
+    put(document.getElementById('glStats'), html`<div>Open incidents <b>${r.n}</b></div><div>Critical <b>${r.crit}</b></div><div>Top threat <b>${r.top}</b></div><div>Share of total <b>${(r.n / total * 100).toFixed(0)}%</b></div><div>Hub <b>${r.city}</b></div>`);
+  }
+  function gpick(i, fromSelect) {
+    gs.sel = i; var r = GL.regions[i];
+    gs.auto = false; document.getElementById('glAuto').textContent = 'Auto-rotate: off';
+    if (reduced) { gs.lon0 = r.lon; gs.lat0 = r.lat * 0.7; } else { gs.tLon = r.lon; gs.tLat = r.lat * 0.7; }
+    if (!fromSelect) document.getElementById('region').selectedIndex = i;
+    glList(); setRegionFilter(GL.regions[i].name); if (reduced) grender(0);
+  }
+  function gtick(t) {
+    var dt = gs.last ? Math.min(50, t - gs.last) : 16; gs.last = t;
+    if (gs.vis && !document.hidden) {
+      if (gs.tLon !== null && !gs.drag) {
+        var d = ((gs.tLon - gs.lon0 + 540) % 360) - 180; gs.lon0 += d * 0.08; gs.lat0 += (gs.tLat - gs.lat0) * 0.08;
+        if (Math.abs(d) < 0.3 && Math.abs(gs.tLat - gs.lat0) < 0.3) gs.tLon = null;
+      } else if (gs.auto && !gs.drag) gs.lon0 += dt * 0.006;
+      grender(t);
+    }
+    requestAnimationFrame(gtick);
+  }
+  cv.addEventListener('pointerdown', function (e) { gs.drag = { x: e.clientX, y: e.clientY, lon: gs.lon0, lat: gs.lat0, moved: 0 }; gs.tLon = null; try { cv.setPointerCapture(e.pointerId); } catch (x) {} });
+  cv.addEventListener('pointermove', function (e) {
+    if (!gs.drag) return;
+    var dx = e.clientX - gs.drag.x, dy = e.clientY - gs.drag.y; gs.drag.moved = Math.max(gs.drag.moved, Math.abs(dx) + Math.abs(dy));
+    gs.lon0 = gs.drag.lon - dx * 0.35; gs.lat0 = Math.max(-55, Math.min(60, gs.drag.lat + dy * 0.35));
+    if (reduced) grender(0);
+  });
+  cv.addEventListener('pointerup', function (e) {
+    var moved = gs.drag ? gs.drag.moved : 99; gs.drag = null;
+    if (moved > 5) return;
+    var rc = cv.getBoundingClientRect(), x = e.clientX - rc.left, y = e.clientY - rc.top, best = -1, bd = 22;
+    gs.hot.forEach(function (p, n) { if (p && p.z > 0.02) { var dd = Math.hypot(p.x - x, p.y - y); if (dd < bd) { bd = dd; best = n; } } });
+    if (best >= 0) gpick(best, false);
+  });
+  document.getElementById('glAuto').addEventListener('click', function () {
+    gs.auto = !gs.auto && !reduced; this.textContent = 'Auto-rotate: ' + (gs.auto ? 'on' : 'off');
+  });
+  document.getElementById('region').addEventListener('change', function (e) { if (e.target.selectedIndex < GL.regions.length) gpick(e.target.selectedIndex, true); });
+  if (window.ResizeObserver) new ResizeObserver(function () { gsize(); grender(0); }).observe(cv);
+  if (window.IntersectionObserver) new IntersectionObserver(function (en) { gs.vis = en[0].isIntersecting; }).observe(cv);
+  if (reduced) document.getElementById('glAuto').textContent = 'Auto-rotate: off';
+  gsize(); glList(); grender(0); if (!reduced) requestAnimationFrame(gtick);
+  /* CORE:START */
+var HaloCore = (function () {
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function parseOffset(ts) {
+    if (/Z$/.test(ts)) return 0;
+    var m = /([+-])(\d{2}):(\d{2})$/.exec(ts);
+    if (!m) throw new Error('Timestamp has no timezone: ' + ts);
+    return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3]));
+  }
+  function toUtc(ts) {
+    var off = parseOffset(ts), ms = Date.parse(ts);
+    if (isNaN(ms)) throw new Error('Invalid timestamp: ' + ts);
+    return { original: ts, offsetMinutes: off, utcMs: ms, utc: new Date(ms).toISOString().replace('.000Z', 'Z') };
+  }
+  function offLabel(min) { var a = Math.abs(min); return 'UTC' + (min < 0 ? '-' : '+') + pad(Math.floor(a / 60)) + ':' + pad(a % 60); }
+
+  var REGIONS = ['Asia Pacific', 'EMEA', 'Americas'];
+  var HOSTS = ['Internet', 'Firewall', 'Switch', 'FIN-SRV', 'DB-Prod', 'WS-001', 'WS-002', 'WS-003', 'Cloud'];
+  var FRA = { lat: 50.11, lon: 8.68, place: 'Frankfurt, DE', method: 'ip' };
+  var EVENTS = [
+    { id: 'EVT-1001', type: 'network', host: 'Firewall', source: 'Firewall log', ts: '2026-10-24T03:42:01Z', desc: 'allow tcp/3389 src=198.51.100.23 rule=rdp-admin-legacy', ip: '198.51.100.23', geo: FRA },
+    { id: 'EVT-1002', type: 'authentication', host: 'FIN-SRV', source: 'Windows security log', ts: '2026-10-24T11:47:55+08:00', desc: 'auth-fail x41 user=admin src=198.51.100.23 in 6 minutes', ip: '198.51.100.23' },
+    { id: 'EVT-1003', type: 'authentication', host: 'FIN-SRV', source: 'Windows security log', ts: '2026-10-24T11:48:07+08:00', desc: 'auth-success user=admin src=198.51.100.23', ip: '198.51.100.23', actor: 'admin', geo: FRA },
+    { id: 'EVT-1004', type: 'endpoint', host: 'FIN-SRV', source: 'EDR process events', ts: '2026-10-24T11:51:30+08:00', desc: 'service-install name=svchelp path=C:/Temp' },
+    { id: 'EVT-1005', type: 'network', host: 'FIN-SRV', source: 'Netflow', ts: '2026-10-24T11:55:02+08:00', desc: 'outbound 2.1 GB dst=203.0.113.77', ip: '203.0.113.77', geo: { lat: 1.35, lon: 103.82, place: 'Singapore (hosting provider range)', method: 'ip' } },
+    { id: 'EVT-1006', type: 'authentication', host: null, source: 'Building access (badge reader)', ts: '2026-10-24T11:20:00+08:00', desc: 'badge-entry user=a.reyes site=Manila HQ', actor: 'a.reyes', geo: { lat: 14.6, lon: 121.0, place: 'Manila HQ', method: 'badge' } },
+    { id: 'EVT-1007', type: 'authentication', host: 'Cloud', source: 'Cloud IdP sign-in log', ts: '2026-10-24T03:48:09Z', desc: 'sign-in user=a.reyes src=198.51.100.23', ip: '198.51.100.23', actor: 'a.reyes', geo: FRA },
+    { id: 'EVT-1011', type: 'authentication', host: 'DB-Prod', source: 'DB audit log', ts: '2026-10-24T11:57:44+08:00', desc: 'db-login acct=svc-fin src=FIN-SRV first-seen' },
+    { id: 'EVT-1012', type: 'endpoint', host: 'DB-Prod', source: 'DB audit log', ts: '2026-10-24T11:58:20+08:00', desc: 'large-query rows=480000 acct=svc-fin' },
+    { id: 'EVT-1013', type: 'network', host: 'DB-Prod', source: 'Netflow', ts: '2026-10-24T11:58:40+08:00', desc: 'tcp/1433 src=FIN-SRV dst=DB-Prod 310 MB' },
+    { id: 'EVT-1021', type: 'endpoint', host: 'WS-001', source: 'EDR file events', ts: '2026-10-24T07:12:10+02:00', desc: 'archive-create path=C:/Users/dlee/export.zip size=640MB' },
+    { id: 'EVT-1022', type: 'network', host: 'WS-001', source: 'Proxy log', ts: '2026-10-24T05:20:44Z', desc: 'outbound upload 640 MB dst=file-share.example.net', ip: '203.0.113.60', geo: { lat: 52.37, lon: 4.9, place: 'Amsterdam, NL', method: 'ip' } },
+    { id: 'EVT-1023', type: 'authentication', host: 'WS-001', source: 'Cloud IdP sign-in log', ts: '2026-10-24T07:05:31+02:00', desc: 'sign-in user=d.lee device=new', ip: '203.0.113.61', actor: 'd.lee', geo: { lat: 52.52, lon: 13.4, place: 'Berlin, DE', method: 'ip' } },
+    { id: 'EVT-1031', type: 'network', host: 'Firewall', source: 'Firewall log', ts: '2026-10-24T09:03:12Z', desc: 'deny tcp/22 x312 src=198.51.100.88', ip: '198.51.100.88', geo: { lat: 1.29, lon: 103.85, place: 'Singapore, SG', method: 'ip' } },
+    { id: 'EVT-1032', type: 'authentication', host: 'Firewall', source: 'VPN gateway log', ts: '2026-10-24T11:04:00+02:00', desc: 'auth-fail x27 user=p.nair src=198.51.100.88', ip: '198.51.100.88' },
+    { id: 'EVT-1041', type: 'endpoint', host: 'WS-003', source: 'EDR process events', ts: '2026-10-24T08:40:05-04:00', desc: 'process-start parent=outlook child=powershell encoded-command' },
+    { id: 'EVT-1042', type: 'network', host: 'WS-003', source: 'DNS log', ts: '2026-10-24T12:40:09Z', desc: 'dns-query login-portal.example.org newly-registered' },
+    { id: 'EVT-1043', type: 'authentication', host: 'WS-003', source: 'Cloud IdP sign-in log', ts: '2026-10-24T08:41:30-04:00', desc: 'password-reset requested user=m.reyes' },
+    { id: 'EVT-1051', type: 'authentication', host: 'Cloud', source: 'Cloud IdP audit log', ts: '2026-10-24T13:15:02Z', desc: 'oauth-consent app=notes-sync scope=mail.read user=k.ortiz', ip: '203.0.113.90', actor: 'k.ortiz', geo: { lat: 32.78, lon: -96.8, place: 'Dallas, US', method: 'ip' } },
+    { id: 'EVT-1052', type: 'network', host: 'Cloud', source: 'Cloud audit log', ts: '2026-10-24T13:16:40Z', desc: 'api-calls x48 mailbox-export app=notes-sync', ip: '203.0.113.90' }
+  ];
+  EVENTS.forEach(function (e) { e.u = toUtc(e.ts); e.synthetic = true; });
+
+  var INCIDENTS = [
+    { id: 'INC-2847', who: 'Sarah Chen', type: 'Ransomware Activity', sev: 'Critical', time: '02:14 PM', stage: 3, region: 'Asia Pacific', host: 'FIN-SRV', demo: true, evidenceIds: ['EVT-1006', 'EVT-1001', 'EVT-1002', 'EVT-1003', 'EVT-1007', 'EVT-1004', 'EVT-1005'], hypothesis: { text: 'The admin account was reached by password guessing over RDP, a persistence service was installed, and data was sent to an external host.', basis: ['EVT-1002', 'EVT-1003', 'EVT-1004', 'EVT-1005'] } },
+    { id: 'INC-2848', who: 'Alex Morgan', type: 'Unauthorized Access', sev: 'High', time: '02:09 PM', stage: 2, region: 'Asia Pacific', host: 'DB-Prod', demo: true, evidenceIds: ['EVT-1011', 'EVT-1012', 'EVT-1013'], hypothesis: { text: 'The FIN-SRV service account was used to query the production database, possibly to stage data.', basis: ['EVT-1011', 'EVT-1012'] } },
+    { id: 'INC-2849', who: 'David Lee', type: 'Data Exfiltration', sev: 'Medium', time: '02:02 PM', stage: 4, region: 'EMEA', host: 'WS-001', demo: true, evidenceIds: ['EVT-1023', 'EVT-1021', 'EVT-1022'], hypothesis: { text: 'A new-device sign-in preceded the creation and upload of a large archive.', basis: ['EVT-1023', 'EVT-1021', 'EVT-1022'] } },
+    { id: 'INC-2850', who: 'Priya Nair', type: 'Brute Force Login', sev: 'High', time: '01:48 PM', stage: 1, region: 'EMEA', host: 'Firewall', demo: true, evidenceIds: ['EVT-1031', 'EVT-1032'], hypothesis: { text: 'A single external source is guessing credentials against SSH and the VPN.', basis: ['EVT-1031', 'EVT-1032'] } },
+    { id: 'INC-2851', who: 'Marco Reyes', type: 'Phishing Report', sev: 'Low', time: '01:31 PM', stage: 5, region: 'Americas', host: 'WS-003', demo: true, evidenceIds: ['EVT-1041', 'EVT-1042', 'EVT-1043'], hypothesis: { text: 'A phishing email likely led to a scripted command and a credential reset request.', basis: ['EVT-1041', 'EVT-1043'] } },
+    { id: 'INC-2852', who: 'Dana Brooks', type: 'Suspicious OAuth Grant', sev: 'Medium', time: '01:20 PM', stage: 2, region: 'Americas', host: 'Cloud', demo: true, evidenceIds: ['EVT-1051', 'EVT-1052'], hypothesis: { text: 'A third-party app was granted mail access and then used to export mailbox data.', basis: ['EVT-1051', 'EVT-1052'] } }
+  ];
+
+  function eventById(id) { for (var i = 0; i < EVENTS.length; i++) if (EVENTS[i].id === id) return EVENTS[i]; return null; }
+  function incidentById(id) { for (var i = 0; i < INCIDENTS.length; i++) if (INCIDENTS[i].id === id) return INCIDENTS[i]; return null; }
+  function eventsFor(incId, type) {
+    var inc = incidentById(incId); if (!inc) return [];
+    var out = inc.evidenceIds.map(eventById).filter(Boolean);
+    if (type && type !== 'all') out = out.filter(function (e) { return e.type === type; });
+    return out.sort(function (a, b) { return a.u.utcMs - b.u.utcMs; });
+  }
+  function filterIncidents(list, region, query) {
+    var q = (query || '').trim().toLowerCase();
+    return list.filter(function (it) {
+      if (region && it.region !== region) return false;
+      if (q && (it.who + ' ' + it.id + ' ' + it.type).toLowerCase().indexOf(q) < 0) return false;
+      return true;
+    });
+  }
+  function navigate(id) {
+    var inc = incidentById(id); if (!inc) return null;
+    return { incidentId: inc.id, host: inc.host, region: inc.region, evidenceIds: inc.evidenceIds.slice() };
+  }
+  function fmtEvent(e) { return e.id + ' ' + e.u.utc.slice(11, 19) + 'Z ' + e.desc + ' [' + e.source + ']'; }
+  function geoBadge(e) {
+    if (!e.geo) return null;
+    return e.geo.method === 'badge' ? { kind: 'verified', label: 'Verified: badge reader' } : { kind: 'approximate', label: 'Approximate: IP geolocation' };
+  }
+  function haversineKm(a, b) {
+    var R = 6371, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lon - a.lon) * r;
+    var x = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+    return 2 * R * Math.asin(Math.sqrt(x));
+  }
+  function geoTimeline(events) {
+    var points = events.filter(function (e) { return e.geo; }).sort(function (a, b) { return a.u.utcMs - b.u.utcMs; });
+    var last = {}, legs = [];
+    points.forEach(function (e) {
+      if (e.actor) {
+        var p = last[e.actor];
+        if (p) {
+          var km = haversineKm(p.geo, e.geo), min = (e.u.utcMs - p.u.utcMs) / 60000, kmh = min > 0 ? km / (min / 60) : 0;
+          legs.push({ from: p.id, to: e.id, km: Math.round(km), minutes: Math.round(min), kmh: Math.round(kmh), flag: km > 500 && kmh > 900, approximate: p.geo.method === 'ip' || e.geo.method === 'ip' });
+        }
+        last[e.actor] = e;
+      }
+    });
+    return { points: points, legs: legs };
+  }
+  function uniq(a) { var o = []; a.forEach(function (x) { if (o.indexOf(x) < 0) o.push(x); }); return o; }
+  function summarize(id) {
+    var inc = incidentById(id); if (!inc) return null;
+    var ev = eventsFor(id), types = uniq(ev.map(function (e) { return e.type; }));
+    var first = ev[0], lastE = ev[ev.length - 1];
+    var observed = [
+      { text: ev.length + ' events across ' + types.join(', ') + '.', refs: ev.map(function (e) { return e.id; }) },
+      { text: 'First observed: ' + first.desc + '.', refs: [first.id] },
+      { text: 'Last observed: ' + lastE.desc + '.', refs: [lastE.id] }
+    ];
+    var hyp = { text: inc.hypothesis.text, refs: inc.hypothesis.basis.slice() };
+    var text = observed.map(function (o) { return o.text + ' [' + o.refs.join(', ') + ']'; }).join(' ') + ' Hypothesis (unconfirmed): ' + hyp.text + ' [' + hyp.refs.join(', ') + ']';
+    var refs = uniq(observed.reduce(function (a, o) { return a.concat(o.refs); }, []).concat(hyp.refs));
+    return { text: text, refs: refs, observed: observed, hypothesis: hyp };
+  }
+  var OllamaAdapter = {
+    enabled: false,
+    endpoint: 'http://127.0.0.1:11434',
+    model: 'not-configured',
+    generate: function () {
+      if (!this.enabled) throw new Error('Ollama adapter is disabled. Enabling it needs a separate, reviewed change.');
+      throw new Error('Ollama adapter is not implemented in this prototype.');
+    }
+  };
+  return { EVENTS: EVENTS, INCIDENTS: INCIDENTS, REGIONS: REGIONS, HOSTS: HOSTS, toUtc: toUtc, offLabel: offLabel, eventById: eventById, incidentById: incidentById, eventsFor: eventsFor, filterIncidents: filterIncidents, navigate: navigate, fmtEvent: fmtEvent, geoBadge: geoBadge, haversineKm: haversineKm, geoTimeline: geoTimeline, summarize: summarize, OllamaAdapter: OllamaAdapter };
+})();
+/* CORE:END */
+
+  var evFilter = 'all', evInc = null, regionFilter = null;
+  incidents.length = 0;
+  HaloCore.INCIDENTS.forEach(function (i) { incidents.push(i); });
+  selected = 0;
+  var HP = {
+    'WS-001': { risk: 'Medium', sus: ['640 MB archive created, then uploaded to an external file share'], rec: 'Block the external file share' },
+    'WS-003': { risk: 'Medium', sus: ['Mail client started an encoded PowerShell command'], rec: 'Isolate WS-003 pending review' },
+    'Cloud': { risk: 'Medium', sus: ['New OAuth app granted mailbox read access', 'Bulk mailbox export through that app'], rec: 'Revoke the app consent' },
+    'Switch': { risk: 'Low', sus: [], rec: '' }
+  };
+  Object.keys(HP).forEach(function (k) { Object.keys(HP[k]).forEach(function (f) { hosts[k][f] = HP[k][f]; }); });
+  Object.keys(hosts).forEach(function (k) { hosts[k].ev = HaloCore.EVENTS.filter(function (e) { return e.host === k; }).map(HaloCore.fmtEvent); });
+  hosts['Internet'].ev = HaloCore.EVENTS.filter(function (e) { return e.ip === '198.51.100.23'; }).map(HaloCore.fmtEvent);
+  selectHost('FIN-SRV');
+
+  function setRegionFilter(r) { regionFilter = r; drawRows(); }
+  function drawRfBar() {
+    var bar = document.getElementById('rfBar');
+    if (!regionFilter) { put(bar, html`<span class='mono' style='color:var(--dim)'>All regions. Click a globe hotspot to filter by region.</span>`); return; }
+    var reg = GL.regions.filter(function (r) { return r.name === regionFilter; })[0];
+    var m = HaloCore.filterIncidents(incidents, regionFilter, query).length;
+    put(bar, html`<span class='chip'>Region: ${regionFilter}</span><span class='mono' style='color:var(--dim)'>Showing ${m} sample incidents of ${reg.n} open in this region</span><button type='button' class='cn' id='rfClear'>Show all regions</button>`);
+    document.getElementById('rfClear').addEventListener('click', function () { setRegionFilter(null); });
+  }
+  function drawRows() {
+    var tb = document.getElementById('rows'); tb.textContent = '';
+    var list = HaloCore.filterIncidents(incidents, regionFilter, query);
+    list.forEach(function (it) {
+      var i = incidents.indexOf(it), tr = document.createElement('tr');
+      if (i === selected) tr.className = 'sel';
+      tr.tabIndex = 0;
+      var ini = it.who.split(' ').map(function (w) { return w[0]; }).join('');
+      put(tr, html`<td><span class='who'><i>${ini}</i>${it.who}</span></td><td class='mono'>${it.id}</td><td>${it.type}</td><td><span class='sev ${it.sev}'>${it.sev}</span></td><td class='mono'>${it.time}</td><td><button type='button' class='cn' data-ev='1'>View evidence</button></td>`);
+      tr.addEventListener('click', function () { openIncident(it.id, 'inv'); });
+      tr.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target === tr) openIncident(it.id, 'inv'); });
+      tr.querySelector('[data-ev]').addEventListener('click', function (e) { e.stopPropagation(); openIncident(it.id, 'fev'); });
+      tb.appendChild(tr);
+    });
+    document.getElementById('count').textContent = list.length + (list.length === 1 ? ' incident' : ' incidents');
+    drawRfBar();
+  }
+  function openIncident(id, where) {
+    var nav = HaloCore.navigate(id); if (!nav) return;
+    incidents.forEach(function (x, i) { if (x.id === id) selected = i; });
+    evInc = id; evFilter = 'all';
+    drawRows(); drawTimeline(); selectHost(nav.host); renderFev();
+    var ri = GL.regions.map(function (r) { return r.name; }).indexOf(nav.region);
+    if (ri >= 0) {
+      gs.sel = ri;
+      if (reduced) { gs.lon0 = GL.regions[ri].lon; gs.lat0 = GL.regions[ri].lat * 0.7; } else { gs.tLon = GL.regions[ri].lon; gs.tLat = GL.regions[ri].lat * 0.7; }
+      glList(); if (reduced) grender(0);
+    }
+    window.HaloNav.go(where === 'fev' ? 'evidence' : 'investigation');
+  }
+  function renderFev() {
+    var body = document.getElementById('fevBody'), title = document.getElementById('fevTitle');
+    if (!evInc) {
+      title.textContent = 'Forensic evidence';
+      put(body, html`<div class='mono' style='color:var(--dim)'>Select an incident in the Global Threat Radar table, or press View evidence on a row. Events appear here with original timestamps and evidence IDs.</div>`);
+      return;
+    }
+    var inc = HaloCore.incidentById(evInc), all = HaloCore.eventsFor(evInc), shown = HaloCore.eventsFor(evInc, evFilter);
+    var sm = HaloCore.summarize(evInc), gt = HaloCore.geoTimeline(all);
+    title.textContent = `Forensic evidence: ${inc.id} (${inc.type}, ${inc.host})`;
+    var types = [['all', 'All'], ['authentication', 'Authentication'], ['endpoint', 'Endpoint'], ['network', 'Network']];
+    var chips = types.map(function (t) {
+      var n = t[0] === 'all' ? all.length : all.filter(function (e) { return e.type === t[0]; }).length;
+      return html`<button type='button' class='cn ${evFilter === t[0] ? 'on' : ''}' data-t='${t[0]}'>${t[1]} ${n}</button>`;
+    });
+    var obs = sm.observed.map(function (o) { return html`<li>${o.text} <span class='mono'>[${o.refs.length > 3 ? o.refs.length + ' events' : o.refs.join(', ')}]</span></li>`; });
+    var evs = shown.map(function (e) {
+      var b = HaloCore.geoBadge(e);
+      var g = b ? html`<div class='evm'><span class='gb ${b.kind}'>${b.label}</span>${e.geo.place}${e.ip ? ' (' + e.ip + ')' : ''}</div>` : html``;
+      return html`<div class='evt'><div class='evh'><span class='mono eid'>${e.id}</span><span class='tb ${e.type}'>${e.type}</span><span class='mono'>${e.source}</span></div><div class='evd'>${e.desc}</div><div class='evm mono'>Original: ${e.ts} (${HaloCore.offLabel(e.u.offsetMinutes)}) | UTC: ${e.u.utc}</div>${g}</div>`;
+    });
+    if (!evs.length) evs = [html`<div class='mono' style='color:var(--dim)'>No events of this type for this incident.</div>`];
+    var pts = gt.points.map(function (e) {
+      var b = HaloCore.geoBadge(e);
+      return html`<li><span class='mono'>${e.u.utc.slice(11, 19)}Z</span> ${e.geo.place} <span class='gb ${b.kind}'>${b.label}</span><span class='mono'>${e.id}</span></li>`;
+    });
+    var legs = gt.legs.map(function (l) {
+      return html`<div class='leg ${l.flag ? 'warn' : ''}'>${l.from} to ${l.to}: ${l.km.toLocaleString('en-US')} km in ${l.minutes} min, implied ${l.kmh.toLocaleString('en-US')} km/h.${l.flag ? ' Not physically plausible if both locations are right. One may be wrong (VPN, proxy or IP geolocation error).' : ''}${l.approximate ? ' Includes approximate IP geolocation.' : ''}</div>`;
+    });
+    put(body, html`${[html`<div class='demo'>Demo mode. This incident and its evidence are synthetic and do not represent a live attack.</div>`,
+      html`<h4>Grounded summary</h4><ul class='obs'>${obs}</ul><div class='hyp'><b>Hypothesis, unconfirmed:</b> ${sm.hypothesis.text} <span class='mono'>[${sm.hypothesis.refs.join(', ')}]</span></div>`,
+      html`<div class='fchips'>${chips}</div>${evs}`,
+      html`<h4 style='margin-top:14px'>Geographic timeline (UTC)</h4>${pts.length ? html`<ul class='geo'>${pts}</ul>${legs}` : html`<div class='mono' style='color:var(--dim)'>No located events for this incident.</div>`}`,
+      html`<div class='mono fnote'>IP geolocation is approximate and can be wrong. Only physical records such as badge readers are shown as verified. The attack graph shows the sample environment with incidents mapped to its hosts. Ask H.A.L.O. answers from this evidence with deterministic rules. The local Ollama adapter is disabled by default.</div>`]}`);
+    body.querySelectorAll('.fchips .cn').forEach(function (b) { b.addEventListener('click', function () { evFilter = b.dataset.t; renderFev(); }); });
+  }
+  renderFev();
+  drawRows();
+
+  function sparks() {
+    var cols = ['#5aa9ff', '#ff5a5f', '#2fd8c0', '#f4b43c'];
+    document.querySelectorAll('.tile').forEach(function (t, k) {
+      var old = t.querySelector('.spark'); if (old) old.remove();
+      var d = series(12, k * 1.7 + bump, 8), mx = Math.max.apply(null, d), mn = Math.min.apply(null, d);
+      var pts = d.map(function (v, i) { return (i * 64 / 11).toFixed(1) + ',' + (22 - 20 * (v - mn) / ((mx - mn) || 1)).toFixed(1); }).join(' ');
+      var s = document.createElementNS(NS, 'svg'); s.setAttribute('class', 'spark'); s.setAttribute('viewBox', '0 0 64 24'); s.setAttribute('aria-hidden', 'true');
+      s.appendChild(el('polyline', { points: pts, fill: 'none', stroke: cols[k], 'stroke-width': 1.6, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      t.appendChild(s);
+    });
+  }
+  drawGauge(90); drawRows(); drawTimeline(); drawChart('24', 0); sparks();
+  function drawPriority() {
+    var host = document.getElementById('priList'); if (!host) return; host.textContent = '';
+    var order = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+    incidents.slice().sort(function (a, b) { return order[a.sev] - order[b.sev]; }).slice(0, 4).forEach(function (it) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'pc';
+      put(b, html`<span class='sev ${it.sev}'>${it.sev}</span><span class='pt'>${it.type}</span><span class='pm mono'>${it.id} &middot; ${it.host} &middot; ${it.time}</span>`);
+      b.addEventListener('click', function () { openIncident(it.id, 'inv'); });
+      host.appendChild(b);
+    });
+  }
+  function drawQueue() {
+    var host = document.getElementById('queList'); if (!host) return; host.textContent = '';
+    Object.keys(HP).filter(function (k) { return HP[k].rec; }).forEach(function (k) {
+      var row = document.createElement('div'); row.className = 'qr';
+      put(row, html`<div><b>${k}</b> <span class='sev ${HP[k].risk}'>${HP[k].risk}</span></div><div class='qa'>${HP[k].rec}</div><div class='qs mono' role='status' aria-live='polite'>Not queued. Simulation only.</div><button type='button' class='btn teal'>Queue for approval (simulated)</button>`);
+      row.querySelector('button').addEventListener('click', function () { row.querySelector('.qs').textContent = 'Simulated at ' + new Date().toLocaleTimeString('en-US') + '. Nothing was saved or sent and no action executed.'; });
+      host.appendChild(row);
+    });
+  }
+  document.getElementById('refresh2').addEventListener('click', function () { document.getElementById('refresh').click(); });
+  drawPriority(); drawQueue();
+})();
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var V = [{"id": "command-center", "title": "Command Center", "desc": "The overview: health, priority incidents, topology and trends. Sample data only."}, {"id": "incidents", "title": "Incidents", "desc": "Filter, search and open incidents. Recommendations only; analysts approve every action."}, {"id": "investigation", "title": "Investigation", "desc": "Connections, suspicious activity, evidence and possible lateral movement for one host."}, {"id": "evidence", "title": "Forensic evidence", "desc": "Original events with timestamps. Every statement lists the log lines it relies on."}, {"id": "timeline", "title": "Incident timeline", "desc": "The stages of the selected incident."}, {"id": "queue", "title": "Response queue (simulated)", "desc": "Recommended actions waiting for an analyst. Nothing here runs."}, {"id": "topology", "title": "Network topology", "desc": "An illustrative sample network with one attack path."}, {"id": "global", "title": "Global activity", "desc": "Synthetic incident regions on a globe. Geolocation is approximate."}, {"id": "behavior", "title": "Behavioral analytics", "desc": "Behavior flags and anomalies in sample cloud events."}, {"id": "ask", "title": "Ask H.A.L.O.", "desc": "Answers come only from the sample evidence on this page. No model is called."}, {"id": "trust", "title": "Trust and status", "desc": "What works today, what is simulated, and what is only planned."}, {"id": "about", "title": "About and demo controls", "desc": "Build information, demo controls and links."}];
+  var ids = V.map(function (v) { return v.id; }), cur = null;
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function fromHash() { var m = /^#\/([a-z-]+)$/.exec(location.hash); return m && ids.indexOf(m[1]) >= 0 ? m[1] : 'command-center'; }
+  function show(id, focus) {
+    var v = V[ids.indexOf(id)];
+    document.querySelectorAll('.view').forEach(function (s) { s.hidden = s.getAttribute('data-view') !== id; });
+    document.querySelectorAll('.ni').forEach(function (a) { if (a.getAttribute('data-view') === id) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    document.getElementById('viewTitle').textContent = v.title;
+    document.getElementById('viewDesc').textContent = v.desc;
+    document.title = v.title + ' - H.A.L.O. Sentinel v12';
+    if (cur !== id) { cur = id; window.scrollTo(0, 0); if (focus) document.getElementById('viewTitle').focus({ preventScroll: true }); }
+    var on = document.querySelector('.ni[aria-current="page"]'); if (on && on.scrollIntoView && !reduced) { try { on.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (e) {} }
+  }
+  window.HaloNav = { go: function (id) { if (ids.indexOf(id) < 0) return; if (location.hash === '#/' + id) show(id, true); else location.hash = '#/' + id; }, current: function () { return cur; }, views: ids.slice() };
+  window.addEventListener('hashchange', function () { show(fromHash(), true); });
+  function topoGo(e) { var n = e.target.closest && e.target.closest('.topo g.node'); if (n && (e.type === 'click' || e.key === 'Enter' || e.key === ' ')) window.HaloNav.go('investigation'); }
+  document.addEventListener('click', topoGo); document.addEventListener('keydown', topoGo);
+  document.getElementById('q').addEventListener('input', function () { if (cur !== 'incidents') window.HaloNav.go('incidents'); });
+  show(fromHash(), false);
+})();
+</script>
+

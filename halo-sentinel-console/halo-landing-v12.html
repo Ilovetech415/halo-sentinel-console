@@ -1,0 +1,503 @@
+<title>H.A.L.O. Security Triage</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'">
+<style>
+/* Layout: the globe is the hero. Left column holds the thesis, calls to action and a ranked list of where traffic came from; the right column is a large globe with arcs converging on the protected site. Below: example incident, pipeline, trust rules, comparison. One deliberate dark look; system fonts only so the page makes no outside requests. */
+:root {
+  --bg: #040b0b;
+  --bg-2: #061211;
+  --panel: #0a1918;
+  --line: #153431;
+  --line-2: #1f4a45;
+  --fg: #e3f1ee;
+  --dim: #86a39e;
+  --signal: #2fd8c0;
+  --cyan: #5ce1f2;
+  --ai: #a78bfa;
+  --signal-soft: rgba(47,216,192,.10);
+  --high: #ff6b5e;
+  --review: #f5a524;
+  --ok: #3ddc97;
+  --display: "Avenir Next", "Segoe UI Variable Display", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;
+  --body: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1200px; margin: 0 auto; padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px)); }
+a { color: var(--signal); }
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+button { font: inherit; color: inherit; }
+
+/* header */
+.top .wrap { display: flex; align-items: center; gap: 20px; padding-block: 16px; }
+.brand { font-family: var(--display); font-weight: 700; letter-spacing: .22em; font-size: 17px; }
+.nav { display: flex; gap: 22px; margin-left: auto; font-size: 14px; }
+.nav a { color: var(--dim); text-decoration: none; }
+.nav a:hover { color: var(--fg); }
+.sample { font-size: 12px; color: var(--review); border: 1px solid rgba(245,165,36,.45); border-radius: 999px; padding: 3px 11px; white-space: nowrap; }
+
+/* hero */
+.hero { padding-block: 28px 56px; background: radial-gradient(60% 70% at 78% 40%, rgba(92,225,242,.08), transparent 70%); }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); grid-template-rows: auto 1fr; grid-template-areas: "txt fig" "list fig"; column-gap: 48px; align-items: start; }
+.txt { grid-area: txt; min-width: 0; }
+.olist { grid-area: list; min-width: 0; }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(34px, 4.6vw, 58px); line-height: 1.04; letter-spacing: -.025em; margin: 0 0 20px; text-wrap: balance; }
+.lede { color: var(--dim); font-size: 17.5px; max-width: 46ch; margin: 0 0 28px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px; }
+.btn { font-size: 15px; font-weight: 500; min-height: 44px; padding: 10px 20px; border-radius: 8px; border: 1px solid var(--line-2); background: var(--panel); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; color: var(--fg); }
+.btn:hover { border-color: var(--signal); }
+.btn.primary { background: var(--signal); border-color: var(--signal); color: #03161b; }
+.btn.primary:hover { filter: brightness(1.08); }
+
+/* origin list */
+.olh { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; font-size: 14px; color: var(--dim); }
+.olh b { color: var(--fg); font-weight: 600; }
+.origins { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.origins li { border-bottom: 1px solid var(--line); }
+.og { width: 100%; display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 4.4em; align-items: center; gap: 14px; background: none; border: 0; padding: 11px 8px; cursor: pointer; text-align: left; border-radius: 6px; }
+.og:hover { background: var(--signal-soft); }
+.og[aria-pressed="true"] { background: var(--signal-soft); box-shadow: inset 2px 0 0 var(--signal); }
+.og .nm { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.og .nm small { color: var(--dim); font-weight: 400; font-size: 13px; margin-left: 4px; }
+.og .bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.og .bar i { display: block; height: 100%; border-radius: 3px; }
+.og .ct { font-variant-numeric: tabular-nums; text-align: right; font-size: 14px; color: var(--dim); }
+.lv-high { --c: var(--high); } .lv-review { --c: var(--review); } .lv-ok { --c: var(--signal); }
+.og .bar i { background: var(--c); }
+
+/* globe figure */
+.fig { grid-area: fig; position: relative; min-width: 0; }
+#globe { width: 100%; aspect-ratio: 1 / 1; max-height: 640px; display: block; touch-action: pan-y; cursor: grab; }
+#globe:active { cursor: grabbing; }
+.read { border: 1px solid var(--line-2); border-radius: 12px; background: rgba(10,18,26,.86); padding: 16px 18px; display: grid; gap: 6px; }
+.read .row1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.read h3 { margin: 0; font-family: var(--display); font-size: 19px; letter-spacing: -.01em; }
+.chip { font-size: 12px; font-weight: 600; border: 1px solid var(--c); color: var(--c); border-radius: 999px; padding: 1px 9px; }
+.read p { margin: 0; font-size: 14.5px; color: var(--dim); }
+.read p b { color: var(--fg); font-weight: 500; }
+.read .fine { font-size: 12.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12.5px; color: var(--dim); margin: 10px 2px 12px; }
+.legend span::before { content: ""; display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--c, var(--signal)); margin-right: 7px; vertical-align: middle; }
+.legend .hq::before { width: 9px; height: 9px; border: 2px solid var(--signal); border-radius: 50%; }
+.demo { position: absolute; top: 6px; left: 6px; font-size: 12px; color: var(--review); border: 1px solid rgba(245,165,36,.45); background: rgba(4,8,12,.7); border-radius: 6px; padding: 3px 9px; }
+
+/* sections */
+section { padding-block: 72px; }
+h2 { font-family: var(--display); font-weight: 700; font-size: clamp(26px, 3.2vw, 38px); line-height: 1.12; letter-spacing: -.02em; margin: 0 0 14px; text-wrap: balance; max-width: 22ch; }
+.sub { color: var(--dim); max-width: 58ch; margin: 0 0 36px; font-size: 17px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+
+.incident { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; }
+.incident > div { padding: 26px; min-width: 0; }
+.incident > div + div { border-left: 1px solid var(--line); background: var(--bg-2); }
+.cap { font-size: 13px; color: var(--dim); margin-bottom: 12px; font-weight: 500; }
+pre { margin: 0; font-family: var(--mono); font-size: 12.5px; line-height: 1.85; overflow-x: auto; }
+.f { color: var(--high); } .s { color: var(--ok); } .m { color: var(--dim); }
+.sev { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.tag { font-size: 12.5px; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--c); color: var(--c); }
+.tag.hi { --c: var(--high); } .tag.cf { --c: var(--signal); }
+.verdict { margin: 0 0 14px; }
+.ev { margin: 0 0 20px; padding-left: 18px; color: var(--dim); font-size: 14.5px; }
+.ev li { margin-bottom: 4px; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.result { font-size: 13.5px; margin-top: 14px; color: var(--ok); min-height: 22px; }
+.note { font-size: 13px; color: var(--dim); margin-top: 14px; }
+
+.flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; counter-reset: st; position: relative; }
+.flow li { padding: 0 22px 0 0; position: relative; min-width: 0; }
+.flow li::before { counter-increment: st; content: counter(st); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--bg); font-weight: 600; font-size: 14px; position: relative; z-index: 1; margin-bottom: 18px; }
+.flow li::after { content: ""; position: absolute; top: 17px; left: 34px; right: 0; border-top: 1px solid var(--line-2); }
+.flow li:last-child::after { display: none; }
+.flow li.ai::before { border-color: var(--signal); color: var(--signal); box-shadow: 0 0 0 4px var(--signal-soft); }
+.flow h3 { font-family: var(--display); font-size: 19px; margin: 0 0 8px; letter-spacing: -.01em; }
+.flow p { margin: 0 0 10px; color: var(--dim); font-size: 15px; }
+.flow .where { font-size: 13px; color: var(--signal); }
+
+.rules { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; }
+.rule { border-top: 1px solid var(--line-2); padding-top: 18px; min-width: 0; }
+.rule h3 { font-family: var(--display); margin: 0 0 8px; font-size: 19px; letter-spacing: -.01em; }
+.rule p { margin: 0; color: var(--dim); font-size: 15.5px; }
+
+.table { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 560px; }
+th, td { text-align: left; padding: 16px 22px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 13px; color: var(--dim); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+tr.me td { background: var(--signal-soft); }
+tr.me td:first-child { color: var(--signal); }
+
+footer { border-top: 1px solid var(--line); padding-block: 30px; }
+footer .wrap { display: flex; gap: 12px 24px; flex-wrap: wrap; justify-content: space-between; font-size: 13.5px; color: var(--dim); }
+
+@media (max-width: 920px) {
+  .hero .wrap { grid-template-columns: 1fr; grid-template-rows: none; grid-template-areas: "txt" "fig" "list"; row-gap: 20px; }
+  .cta { margin-bottom: 8px; }
+  .nav { display: none; }
+  .sample { margin-left: auto; }
+  .incident { grid-template-columns: 1fr; }
+  .incident > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .flow { grid-template-columns: 1fr 1fr; row-gap: 36px; }
+  .flow li:nth-child(2)::after { display: none; }
+  .rules { grid-template-columns: 1fr; gap: 28px; }
+  section { padding-block: 52px; }
+}
+@media (max-width: 520px) {
+  .flow { grid-template-columns: 1fr; }
+  .flow li::after { display: none; }
+  .og { grid-template-columns: minmax(0, 8em) minmax(0, 1fr) 3.6em; gap: 10px; }
+}
+.note { font-size: 12.5px; color: var(--dim); margin: 10px 0 0; }
+.flow .where { color: var(--dim); }
+.flow li.ai { border-color: rgba(167,139,250,.4); }
+.flow li.ai h3 { color: var(--ai); }
+.flow li.ai::before { border-color: var(--ai); color: var(--ai); box-shadow: 0 0 0 4px rgba(167,139,250,.12); }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <span class="brand">H.A.L.O.</span>
+    <nav class="nav" aria-label="Page sections">
+      <a href="#incident">Example incident</a>
+      <a href="#pipeline">How it works</a>
+      <a href="#trust">Trust rules</a>
+      <a href="halo-sentinel-console-v12.html#/command-center">Sentinel demo</a>
+    </nav>
+    <span class="sample">Sample data</span>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <div class="txt">
+        <h1>Know where it came from. Decide what happens next.</h1>
+        <p class="lede">H.A.L.O. is being built to read alerts from endpoint, cloud, scanner, SIEM and firewall tools, add context, and recommend an action. It never blocks anything on its own. Your analysts approve. Today it is a research demo that runs on synthetic data and connects to no live system.</p>
+        <div class="cta">
+          <a class="btn primary" href="halo-sentinel-console-v12.html#/command-center">Open the Sentinel demo</a>
+          <a class="btn" href="#incident">See an example incident</a>
+          <a class="btn" href="#pipeline">How it works</a>
+        </div>
+      </div>
+      <div class="olist">
+        <div class="olh"><b>Where sign-in traffic came from</b><span id="tot"></span></div>
+        <ul class="origins" id="origins"></ul>
+      </div>
+      <div class="fig">
+        <canvas id="globe" role="img" aria-label="Globe with arcs from five origin regions converging on the Manila headquarters. Frankfurt is high risk, São Paulo and Lagos need review, Singapore and Virginia are expected. Use the list to focus a region."></canvas>
+        <div class="demo">Sample data, not live traffic</div>
+        <div class="legend" aria-hidden="true">
+          <span style="--c: var(--high)">High risk</span>
+          <span style="--c: var(--review)">Needs review</span>
+          <span style="--c: var(--signal)">Expected</span>
+          <span class="hq">Protected site</span>
+        </div>
+        <div class="read" id="read" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <section id="incident">
+    <div class="wrap">
+      <h2>From raw auth logs to a decision in one card</h2>
+      <p class="sub">A brute-force burst followed by a successful login, the Frankfurt traffic from the globe above. H.A.L.O. packages the evidence, states its confidence and proposes a reversible action. Nothing runs until a person approves it.</p>
+      <div class="panel incident">
+        <div>
+          <div class="cap">Evidence, 5 of 38 events</div>
+<pre><span class="m">03:42:01</span> <span class="f">auth-fail</span>    user=admin src=203.0.113.4
+<span class="m">03:42:03</span> <span class="f">auth-fail</span>    user=admin src=203.0.113.4
+<span class="m">03:42:05</span> <span class="f">auth-fail</span>    user=admin src=203.0.113.4
+<span class="m">03:42:07</span> <span class="f">auth-fail</span>    user=admin src=203.0.113.4
+<span class="m">03:42:09</span> <span class="s">auth-success</span> user=admin src=203.0.113.4</pre>
+          <div class="note">Source: Linux auth log via log shipper. Origin: Frankfurt, DE, estimated from the IP address. Context: new IP for this account, admin role, production host.</div>
+        </div>
+        <div>
+          <div class="cap">H.A.L.O. assessment</div>
+          <div class="sev"><span class="tag hi">Severity: high</span><span class="tag cf">Sample confidence: 94% (fixed value, not calculated)</span></div>
+          <p class="verdict">Likely brute-force with credential success. Four failures in 8 seconds from an unseen IP, then a valid login to a privileged account.</p>
+          <ul class="ev">
+            <li>Burst rate far above this account's baseline</li>
+            <li>Success directly after the failure streak</li>
+            <li>Production host, admin role</li>
+          </ul>
+          <div class="cap">Recommended action</div>
+          <p class="verdict">Disable the admin session and force a password reset.</p>
+          <div class="actions">
+            <button class="btn primary" type="button" data-a="approved">Approve</button>
+            <button class="btn" type="button" data-a="sent back for edits">Edit scope</button>
+            <button class="btn" type="button" data-a="dismissed as a false positive">Dismiss</button>
+          </div>
+          <div class="result" id="res" role="status" aria-live="polite"></div>
+          <p class="note">Illustration with fixed sample text. These buttons only show a message. The <a href="halo-sentinel-console-v12.html#/command-center">Sentinel demo</a> shows the same simulated approval step.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pipeline" style="background: var(--bg-2); border-block: 1px solid var(--line);">
+    <div class="wrap">
+      <h2>Four layers, one direction</h2>
+      <p class="sub">The intended design. Signals flow in. Nothing flows back out to your network except an action a person approved. The status of each layer today is shown below each card.</p>
+      <ol class="flow">
+        <li><h3>Ingest</h3><p>Endpoint agents, cloud logs, SIEM, scanners and firewall alerts are normalized, de-duplicated and merged into one case.</p><div class="where">Planned. No connectors exist yet. Event format validator built and tested separately.</div></li>
+        <li><h3>Context</h3><p>Adds asset criticality, identity history, threat intel and past incidents, so a spike is judged against what is normal.</p><div class="where">Planned. Not built.</div></li>
+        <li class="ai"><h3>Reason</h3><p>The model explains what likely happened, scores severity and confidence, and recommends an action, citing the log lines behind each claim.</p><div class="where">Planned. A local model adapter exists only as a disabled stub. The demo uses fixed text.</div></li>
+        <li><h3>Act</h3><p>An analyst approves, edits or rejects. The intended design adds a policy engine for narrow, reversible actions and a log of every step.</p><div class="where">Simulated in the Sentinel demo. No remediation, policy engine or audit log exists.</div></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="trust">
+    <div class="wrap">
+      <h2>Built so a bad answer cannot do damage</h2>
+      <p class="sub">Log text can be written by an attacker, so the system treats it as data and never as instructions. These are design rules. Which parts work today is listed on the <a href="halo-sentinel-console-v12.html#/trust">Trust and status page</a>.</p>
+      <div class="rules">
+        <div class="rule"><h3>Recommends, never decides</h3><p>Model output goes to a person. Today nothing runs automatically. The design allows only pre-agreed, reversible steps.</p></div>
+        <div class="rule"><h3>Every claim has evidence</h3><p>If H.A.L.O. cannot point to the log line behind a statement, it does not make the statement.</p></div>
+        <div class="rule"><h3>Prompts are logged and sanitized</h3><p>The design records each prompt and response for review. Today no model is connected. The demo escapes all event text before display and answers only from sample evidence.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="padding-top: 0;">
+    <div class="wrap">
+      <h2>Between the haystack and the script</h2>
+      <p class="sub">H.A.L.O. is meant to sit beside your tools and read what they already produce. This describes the intended role. The demo connects to none of them.</p>
+      <div class="panel table">
+        <table>
+          <thead><tr><th>Tool</th><th>What it does</th><th>What is left for a human</th></tr></thead>
+          <tbody>
+            <tr><td>Firewall</td><td>Blocks or allows traffic in real time</td><td>Understanding why it fired</td></tr>
+            <tr><td>SIEM</td><td>Collects and stores every event</td><td>Finding the incident in the pile</td></tr>
+            <tr><td>SOAR</td><td>Runs fixed playbooks after detection</td><td>Deciding which playbook applies</td></tr>
+            <tr class="me"><td>H.A.L.O.</td><td>Correlates, explains, scores and recommends</td><td>Approving the action</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>H.A.L.O. AI security triage. Research build with sample data. <a href="halo-sentinel-console-v12.html#/command-center">Open the Sentinel demo</a>.</span>
+    <span>Recommendations only. Humans approve remediation.</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var res = document.getElementById('res');
+  document.querySelectorAll('.actions .btn').forEach(function (b) {
+    b.addEventListener('click', function () {
+      res.textContent = 'Sample card ' + b.getAttribute('data-a') + '. Simulated: nothing was logged, saved or sent, and no action ran.';
+    });
+  });
+})();
+</script>
+<script>
+(function () {
+  var LAND = [
+    [[-168,66],[-156,71],[-130,70],[-110,72],[-95,70],[-85,68],[-80,63],[-93,58],[-83,52],[-79,55],[-77,62],[-70,60],[-62,58],[-56,52],[-60,46],[-67,44],[-70,41],[-76,36],[-81,31],[-80,26],[-83,29],[-90,29],[-97,26],[-97,21],[-91,19],[-87,21],[-88,16],[-83,10],[-79,9],[-82,8],[-86,12],[-92,15],[-105,20],[-110,24],[-113,31],[-117,32],[-121,35],[-124,41],[-124,48],[-130,54],[-138,59],[-148,61],[-158,58],[-165,60]],
+    [[-55,60],[-45,60],[-22,70],[-20,82],[-60,82],[-72,78],[-58,70]],
+    [[-80,9],[-72,12],[-62,10],[-52,5],[-50,0],[-35,-5],[-35,-10],[-40,-22],[-48,-26],[-54,-34],[-58,-39],[-65,-42],[-66,-48],[-69,-53],[-74,-52],[-73,-40],[-71,-30],[-70,-18],[-76,-14],[-81,-5],[-80,0],[-78,5]],
+    [[-10,36],[-9,43],[-2,44],[-4,48],[2,51],[8,54],[10,57],[5,62],[12,66],[20,70],[30,70],[40,67],[40,60],[30,56],[28,46],[27,41],[24,38],[20,40],[16,38],[10,44],[3,43],[-1,37]],
+    [[-17,21],[-10,30],[-5,36],[10,37],[20,33],[32,31],[34,28],[38,18],[43,12],[51,12],[46,2],[40,-5],[40,-15],[35,-24],[32,-29],[25,-34],[18,-34],[13,-24],[12,-10],[9,-1],[9,4],[0,5],[-8,4],[-13,9],[-17,14]],
+    [[27,41],[38,42],[48,46],[55,52],[60,60],[68,70],[80,74],[100,77],[115,74],[140,72],[165,70],[180,66],[170,60],[160,53],[156,58],[142,59],[137,54],[140,48],[131,43],[128,38],[127,34],[122,40],[118,38],[122,31],[120,24],[110,20],[108,15],[109,11],[105,9],[101,13],[100,6],[104,1],[98,8],[94,17],[91,22],[86,20],[80,15],[77,8],[73,17],[72,21],[67,24],[61,25],[57,26],[51,28],[48,30],[50,26],[56,24],[59,22],[55,17],[44,13],[42,17],[38,24],[35,29],[34,31],[36,35],[36,37],[30,37]],
+    [[114,-22],[122,-18],[130,-12],[137,-12],[142,-11],[146,-19],[153,-26],[151,-34],[147,-39],[140,-38],[135,-34],[124,-34],[115,-34],[113,-26]]
+  ];
+  var HQ = { name: 'Manila HQ', lon: 121.0, lat: 14.6 };
+  var REG = [
+    { id: 'fra', name: 'Frankfurt', cc: 'DE', lon: 8.68, lat: 50.11, n: 1842, lvl: 'high', label: 'High risk', note: 'Four failed logins in eight seconds on the admin account, then a valid login from an address never seen before.', src: '203.0.113.0/24' },
+    { id: 'gru', name: 'São Paulo', cc: 'BR', lon: -46.63, lat: -23.55, n: 913, lvl: 'review', label: 'Needs review', note: 'Probing of the login page and open ports. No successful sign-ins.', src: '198.51.100.0/24' },
+    { id: 'los', name: 'Lagos', cc: 'NG', lon: 3.38, lat: 6.52, n: 266, lvl: 'review', label: 'Needs review', note: 'One password tried against 40 accounts. None succeeded.', src: '192.0.2.0/24' },
+    { id: 'sin', name: 'Singapore', cc: 'SG', lon: 103.82, lat: 1.35, n: 377, lvl: 'ok', label: 'Expected', note: 'Matches the allow-listed partner office VPN.', src: 'Partner VPN' },
+    { id: 'ash', name: 'Virginia', cc: 'US', lon: -77.45, lat: 39.04, n: 604, lvl: 'ok', label: 'Expected', note: 'Cloud provider health checks and CI runners.', src: 'Cloud provider ranges' }
+  ];
+  var COL = { high: [255, 107, 94], review: [245, 165, 36], ok: [92, 225, 242] };
+  function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')'; }
+  function fmt(n) { return n.toLocaleString('en-US'); }
+  function el(id) { return document.getElementById(id); }
+
+  /* geometry */
+  function inPoly(lon, lat, p) {
+    var c = false;
+    for (var i = 0, j = p.length - 1; i < p.length; j = i++) {
+      var xi = p[i][0], yi = p[i][1], xj = p[j][0], yj = p[j][1];
+      if (((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi)) c = !c;
+    }
+    return c;
+  }
+  function vec(lon, lat) { var a = lat * Math.PI / 180, b = lon * Math.PI / 180; return [Math.cos(a) * Math.cos(b), Math.cos(a) * Math.sin(b), Math.sin(a)]; }
+  var dots = [];
+  for (var la = -58; la <= 80; la += 2.4) {
+    var stp = Math.max(2.4, 2.4 / Math.cos(la * Math.PI / 180));
+    for (var lo = -180; lo <= 180; lo += stp) { for (var k = 0; k < LAND.length; k++) { if (inPoly(lo, la, LAND[k])) { dots.push(vec(lo, la)); break; } } }
+  }
+  var vh = vec(HQ.lon, HQ.lat);
+  REG.forEach(function (r) {
+    r.v = vec(r.lon, r.lat);
+    r.om = Math.acos(Math.max(-1, Math.min(1, r.v[0] * vh[0] + r.v[1] * vh[1] + r.v[2] * vh[2])));
+  });
+  var maxN = Math.max.apply(null, REG.map(function (r) { return r.n; }));
+  var total = REG.reduce(function (s, r) { return s + r.n; }, 0);
+
+  /* list */
+  var ul = el('origins');
+  el('tot').textContent = fmt(total) + ' sample events';
+  REG.forEach(function (r) {
+    var li = document.createElement('li');
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'og lv-' + r.lvl; b.setAttribute('data-id', r.id); b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<span class="nm"></span><span class="bar"><i></i></span><span class="ct"></span>';
+    b.querySelector('.nm').textContent = r.name;
+    var sm = document.createElement('small'); sm.textContent = r.cc; b.querySelector('.nm').appendChild(sm);
+    b.querySelector('.bar i').style.width = Math.max(4, Math.round(r.n / maxN * 100)) + '%';
+    b.querySelector('.ct').textContent = fmt(r.n);
+    b.addEventListener('click', function () { userPick(r.id); });
+    li.appendChild(b); ul.appendChild(li); r.btn = b;
+  });
+
+  /* readout */
+  var read = el('read');
+  function showRead(r) {
+    read.className = 'read lv-' + r.lvl;
+    read.innerHTML = '<div class="row1"><h3></h3><span class="chip"></span></div><p class="d"></p><p class="fine"></p>';
+    read.querySelector('h3').textContent = r.name + ', ' + r.cc;
+    read.querySelector('.chip').textContent = r.label;
+    read.querySelector('.d').innerHTML = '<b>' + fmt(r.n) + ' sign-in events.</b> ';
+    read.querySelector('.d').appendChild(document.createTextNode(r.note));
+    read.querySelector('.fine').textContent = 'Location estimated from the IP address (' + r.src + '), so it can be wrong. The protected site, Manila HQ, is a known location.';
+  }
+
+  /* canvas */
+  var cv = el('globe'), g = cv.getContext('2d');
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var S = { lon0: 62, lat0: 24, tLon: null, tLat: null, w: 600, h: 600, cx: 300, cy: 300, R: 230, drag: null, vis: true, sel: null, touched: false, c: [1, 0, 1, 0] };
+  function setRot() { var l = S.lon0 * Math.PI / 180, p = S.lat0 * Math.PI / 180; S.c = [Math.cos(l), Math.sin(l), Math.cos(p), Math.sin(p)]; }
+  function pr(v) {
+    var c = S.c, x1 = v[0] * c[0] + v[1] * c[1], y1 = -v[0] * c[1] + v[1] * c[0], z1 = v[2];
+    var x2 = x1 * c[2] + z1 * c[3], up = z1 * c[2] - x1 * c[3];
+    return { x: S.cx + S.R * y1, y: S.cy - S.R * up, z: x2 };
+  }
+  function line(pts) {
+    var pen = false; g.beginPath();
+    pts.forEach(function (p) { if (p.z > 0) { if (!pen) { g.moveTo(p.x, p.y); pen = true; } else g.lineTo(p.x, p.y); } else pen = false; });
+    g.stroke();
+  }
+  function arcPt(r, t) {
+    var s = Math.sin(r.om), a = Math.sin((1 - t) * r.om) / s, b = Math.sin(t * r.om) / s, lift = 1 + 0.32 * Math.sin(Math.PI * t) * Math.min(1, r.om / 2);
+    return pr([(a * r.v[0] + b * vh[0]) * lift, (a * r.v[1] + b * vh[1]) * lift, (a * r.v[2] + b * vh[2]) * lift]);
+  }
+  function size() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    S.w = cv.clientWidth || 600; S.h = cv.clientHeight || S.w;
+    cv.width = Math.round(S.w * dpr); cv.height = Math.round(S.h * dpr);
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    S.cx = S.w / 2; S.cy = S.h / 2; S.R = Math.min(S.w, S.h) * 0.385;
+  }
+  function label(txt, x, y, w, strong) {
+    g.font = (strong ? '600 ' : '500 ') + '13px system-ui, -apple-system, "Segoe UI", sans-serif';
+    var right = x > w - 150;
+    g.textAlign = right ? 'right' : 'left'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(4,8,12,.75)'; var tw = g.measureText(txt).width, px = right ? x - 14 - tw : x + 14;
+    g.fillRect(px - 4, y - 18, tw + 8, 18);
+    g.fillStyle = strong ? '#e1ecf2' : '#b7c8d2'; g.fillText(txt, right ? x - 14 : x + 14, y - 9);
+  }
+  function render(t) {
+    var i, j, w = S.w, h = S.h, R = S.R; setRot();
+    g.clearRect(0, 0, w, h);
+    var halo = g.createRadialGradient(S.cx, S.cy, R * 0.96, S.cx, S.cy, R * 1.32);
+    halo.addColorStop(0, 'rgba(92,225,242,.22)'); halo.addColorStop(1, 'rgba(92,225,242,0)');
+    g.fillStyle = halo; g.beginPath(); g.arc(S.cx, S.cy, R * 1.32, 0, 6.2832); g.fill();
+    var gr = g.createRadialGradient(S.cx - R * 0.35, S.cy - R * 0.4, R * 0.1, S.cx, S.cy, R);
+    gr.addColorStop(0, '#0f3a45'); gr.addColorStop(0.6, '#08202a'); gr.addColorStop(1, '#040c11');
+    g.fillStyle = gr; g.beginPath(); g.arc(S.cx, S.cy, R, 0, 6.2832); g.fill();
+    g.lineWidth = 1.2; g.strokeStyle = 'rgba(92,225,242,.55)'; g.stroke();
+    g.lineWidth = 1; g.strokeStyle = 'rgba(92,225,242,.10)';
+    for (i = -180; i < 180; i += 30) { var m = []; for (j = -80; j <= 80; j += 5) m.push(pr(vec(i, j))); line(m); }
+    for (i = -60; i <= 60; i += 30) { var q = []; for (j = -180; j <= 180; j += 5) q.push(pr(vec(j, i))); line(q); }
+    for (i = 0; i < dots.length; i++) {
+      var p = pr(dots[i]);
+      if (p.z > 0) { g.fillStyle = 'rgba(92,225,242,' + (0.14 + 0.72 * p.z).toFixed(2) + ')'; g.fillRect(p.x - 0.9, p.y - 0.9, 1.8, 1.8); }
+    }
+    /* arcs: selected one is bright, the rest dim */
+    REG.forEach(function (r) {
+      var on = S.sel === r.id, c = COL[r.lvl], pts = [];
+      for (i = 0; i <= 56; i++) pts.push(arcPt(r, i / 56));
+      g.lineWidth = on ? 2.6 : 1.4; g.strokeStyle = rgba(c, on ? 0.98 : (S.sel ? 0.32 : 0.7)); line(pts);
+      if (!reduced) {
+        var nd = 1 + Math.round(r.n / maxN * 2);
+        for (var d = 0; d < nd; d++) {
+          var dp = arcPt(r, ((t || 0) / (3200 + d * 400) + d / nd + r.om) % 1);
+          if (dp.z > 0) { g.save(); g.shadowColor = rgba(c, 1); g.shadowBlur = on ? 12 : 6; g.fillStyle = rgba(c, on ? 1 : 0.85); g.beginPath(); g.arc(dp.x, dp.y, on ? 3.2 : 2.2, 0, 6.2832); g.fill(); g.restore(); }
+        }
+      }
+    });
+    /* origin markers */
+    REG.forEach(function (r) {
+      var p = pr(r.v); if (p.z <= 0.03) return;
+      var c = COL[r.lvl], on = S.sel === r.id, base = 4 + 6 * Math.sqrt(r.n / maxN);
+      var ph = reduced ? 0.5 : (((t || 0) / 2200) + r.om) % 1;
+      g.strokeStyle = rgba(c, (1 - ph) * 0.6); g.lineWidth = 1.5; g.beginPath(); g.arc(p.x, p.y, base + 4 + ph * 16, 0, 6.2832); g.stroke();
+      g.save(); g.shadowColor = rgba(c, 1); g.shadowBlur = on ? 16 : 9; g.fillStyle = rgba(c, 1); g.beginPath(); g.arc(p.x, p.y, on ? base * 0.75 + 2 : base * 0.6 + 1, 0, 6.2832); g.fill(); g.restore();
+      if (on || p.z > 0.35) label(r.name, p.x, p.y, w, on);
+    });
+    /* protected site */
+    var ph2 = pr(vh);
+    if (ph2.z > 0.03) {
+      g.save(); g.shadowColor = '#5ce1f2'; g.shadowBlur = 16; g.fillStyle = '#5ce1f2'; g.beginPath(); g.arc(ph2.x, ph2.y, 5.5, 0, 6.2832); g.fill(); g.restore();
+      g.strokeStyle = '#5ce1f2'; g.lineWidth = 1.5; g.beginPath(); g.arc(ph2.x, ph2.y, 11, 0, 6.2832); g.stroke();
+      g.strokeStyle = 'rgba(92,225,242,.4)'; g.beginPath(); g.arc(ph2.x, ph2.y, 18, 0, 6.2832); g.stroke();
+      label('Manila HQ', ph2.x, ph2.y + 12, w, true);
+    }
+  }
+
+  /* selection and motion */
+  function select(id) {
+    var r = REG.filter(function (x) { return x.id === id; })[0]; if (!r) return;
+    S.sel = id;
+    REG.forEach(function (x) { x.btn.setAttribute('aria-pressed', x.id === id ? 'true' : 'false'); });
+    showRead(r);
+    var tl = Math.max(-20, Math.min(48, r.lat * 0.7));
+    var mid = r.lon + ((((HQ.lon - r.lon) + 540) % 360) - 180) * (r.om < 2 ? 0.5 : 0.2);
+    if (reduced) { S.lon0 = mid; S.lat0 = tl; render(0); } else { S.tLon = mid; S.tLat = tl; }
+  }
+  function userPick(id) { S.touched = true; select(id); }
+  function tick(t) {
+    if (S.vis && !document.hidden) {
+      if (S.tLon !== null && !S.drag) {
+        var dd = ((S.tLon - S.lon0 + 540) % 360) - 180; S.lon0 += dd * 0.07; S.lat0 += (S.tLat - S.lat0) * 0.07;
+        if (Math.abs(dd) < 0.2 && Math.abs(S.tLat - S.lat0) < 0.2) S.tLon = null;
+      }
+      render(t);
+    }
+    requestAnimationFrame(tick);
+  }
+  cv.addEventListener('pointerdown', function (e) { S.touched = true; S.drag = { x: e.clientX, y: e.clientY, lon: S.lon0, lat: S.lat0, moved: false }; S.tLon = null; try { cv.setPointerCapture(e.pointerId); } catch (x) {} });
+  cv.addEventListener('pointermove', function (e) {
+    if (!S.drag) return;
+    var dx = e.clientX - S.drag.x, dy = e.clientY - S.drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) S.drag.moved = true;
+    S.lon0 = S.drag.lon - dx * 0.35; S.lat0 = Math.max(-55, Math.min(60, S.drag.lat + dy * 0.35));
+    if (reduced) render(0);
+  });
+  function endDrag(e) {
+    var d = S.drag; S.drag = null; if (!d || d.moved || !e || e.type === 'pointercancel') return;
+    var rect = cv.getBoundingClientRect(), x = e.clientX - rect.left, y = e.clientY - rect.top, best = null, bd = 26;
+    setRot(); REG.forEach(function (r) { var p = pr(r.v); if (p.z > 0.03) { var dist = Math.hypot(p.x - x, p.y - y); if (dist < bd) { bd = dist; best = r; } } });
+    if (best) userPick(best.id);
+  }
+  cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
+  if (window.ResizeObserver) new ResizeObserver(function () { size(); render(0); }).observe(cv);
+  if (window.IntersectionObserver) new IntersectionObserver(function (en) { S.vis = en[0].isIntersecting; }).observe(cv);
+
+  size(); select('fra'); S.lon0 = S.tLon; S.lat0 = S.tLat; S.tLon = null; render(0);
+  if (!reduced) {
+    requestAnimationFrame(tick);
+    var order = ['fra', 'gru', 'los', 'sin', 'ash'], k2 = 0;
+    setInterval(function () { if (S.touched || !S.vis || document.hidden) return; k2 = (k2 + 1) % order.length; select(order[k2]); }, 6500);
+  }
+})();
+</script>
